@@ -225,7 +225,7 @@ export default function LoginScreen() {
         await supabase.auth.updateUser({
           data: {
             full_name: fullName.trim(),
-            onboarding_completed: true,
+            onboarding_completed: false,
           },
         })
         try {
