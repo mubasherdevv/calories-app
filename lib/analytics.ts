@@ -24,6 +24,8 @@ type IdentifyProperties = Parameters<PostHog['identify']>[1]
 type EventName =
   // Auth
   | 'login_started'
+  | 'signup_started'
+  | 'signup_success'
   | 'otp_sent'
   | 'login_success'
   | 'logout'

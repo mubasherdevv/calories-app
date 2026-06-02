@@ -383,7 +383,7 @@ export default function OnboardingScreen() {
       >
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[s.scrollContainer, { paddingBottom: insets.bottom + 88 }]}
+          contentContainerStyle={[s.scrollContainer, { paddingBottom: insets.bottom + 110 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           bounces={false}
@@ -1054,6 +1054,7 @@ const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: BG_MINT,
+    overflow: 'hidden',
   },
 
   // Glowing soft green highlights
@@ -1795,6 +1796,11 @@ const s = StyleSheet.create({
 
   // Fixed action footer styles
   fixedFooter: {
+    position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
     paddingHorizontal: 24,
     paddingTop: 12,
     backgroundColor: BG_MINT,

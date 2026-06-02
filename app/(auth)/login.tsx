@@ -43,6 +43,7 @@ import {
 } from '@/lib/theme'
 import { APP_SCHEME } from '@/lib/constants'
 import { Fonts } from '@/lib/typography'
+import { useToast } from '@/contexts/ToastContext'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -82,45 +83,21 @@ function normalizeEmail(raw: string): string {
   return `${finalLocal}@${domain}`
 }
 
-const OTP_LENGTH = 8
-
 export default function LoginScreen() {
   const insets = useSafeAreaInsets()
+  const { showToast } = useToast()
 
-  const [step, setStep] = useState<'email' | 'otp'>('email')
   const [isSignUp, setIsSignUp] = useState(false) // Screen 6 (Login) vs Screen 7 (Signup)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('') // For signup name input
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''))
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [cooldown, setCooldown] = useState(0)
-  const [failedAttempts, setFailedAttempts] = useState(0)
-  const [lockoutEnd, setLockoutEnd] = useState<number | null>(null)
-  const [lockoutLeft, setLockoutLeft] = useState(0)
 
-  const otpRefs = useRef<(RNTextInput | null)[]>([])
   const emailRef = useRef<RNTextInput>(null)
 
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000)
-    return () => clearTimeout(t)
-  }, [cooldown])
-
-  useEffect(() => {
-    if (!lockoutEnd) return
-    const tick = () => {
-      const rem = Math.max(0, Math.ceil((lockoutEnd - Date.now()) / 1000))
-      setLockoutLeft(rem)
-      if (rem === 0) setLockoutEnd(null)
-    }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
-  }, [lockoutEnd])
-
-  const handleSendOtp = async () => {
+  const handleAuth = async () => {
     const normalized = normalizeEmail(email)
     if (!normalized || !normalized.includes('@') || !normalized.includes('.')) {
       setError('Enter a valid email address')
@@ -131,156 +108,65 @@ export default function LoginScreen() {
       setError('Temporary email addresses are not allowed.')
       return
     }
-
-    setLoading(true)
-    setError(null)
-    track('login_started')
-
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: normalized,
-      options: {
-        shouldCreateUser: true, // This automatically creates a user if signing up
-        data: isSignUp && fullName.trim() ? { full_name: fullName.trim() } : undefined,
-      },
-    })
-
-    setLoading(false)
-    if (err) {
-      setError(err.message)
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters')
       return
     }
 
-    track('otp_sent')
-    setStep('otp')
-    setCooldown(60)
-    setTimeout(() => otpRefs.current[0]?.focus(), 300)
-  }
+    setLoading(true)
+    setError(null)
 
-  const handleVerifyOtp = useCallback(
-    async (code: string) => {
-      if (code.length < OTP_LENGTH) return
-      if (lockoutEnd && Date.now() < lockoutEnd) {
-        setError(`Too many attempts. Wait ${Math.ceil((lockoutEnd - Date.now()) / 60000)} minute(s).`)
+    if (isSignUp) {
+      if (!fullName.trim()) {
+        setError('Please enter your full name')
+        setLoading(false)
         return
       }
-
-      setLoading(true)
-      setError(null)
-
-      /**
-       * DEVELOPER NOTE: OTP vs Magic Link Behavior
-       * By default, Supabase sends a clickable Confirmation URL Link.
-       * To make Supabase send a 6-digit numeric OTP code instead:
-       * Go to: Supabase Console -> Auth -> Email Templates -> Magic Link.
-       * Change the template body from `{{ .ConfirmationURL }}` to `{{ .Token }}`.
-       * 
-       * To ensure absolute compatibility with all Supabase configurations,
-       * we implement a self-healing verification flow: we attempt verification
-       * using the 'email' type first, and if that fails, we fallback to 'magiclink'.
-       */
-      let verifyErr: any = null
-      let verifyData: any = null
-
-      const firstAttempt = await supabase.auth.verifyOtp({
-        email: normalizeEmail(email),
-        token: code,
-        type: 'email',
-      })
-
-      verifyErr = firstAttempt.error
-      verifyData = firstAttempt.data
-
-      if (verifyErr) {
-        // Fallback to 'magiclink' verification type if 'email' type failed
-        const secondAttempt = await supabase.auth.verifyOtp({
-          email: normalizeEmail(email),
-          token: code,
-          type: 'magiclink',
-        })
-        if (!secondAttempt.error) {
-          verifyErr = null
-          verifyData = secondAttempt.data
-        }
-      }
-
-      setLoading(false)
-
-      if (verifyErr) {
-        const next = failedAttempts + 1
-        setFailedAttempts(next)
-        if (next >= 5) {
-          setLockoutEnd(Date.now() + 15 * 60 * 1000)
-          setError('Too many failed attempts. Please wait 15 minutes.')
-        } else {
-          setError(`Invalid code. ${5 - next} attempt${5 - next === 1 ? '' : 's'} left.`)
-        }
-        setOtp(Array(OTP_LENGTH).fill(''))
-        setTimeout(() => otpRefs.current[0]?.focus(), 50)
-        return
-      }
-
-      // If they signed up, update their metadata name double security
-      const data = verifyData;
-      if (isSignUp && fullName.trim() && data?.user) {
-        await supabase.auth.updateUser({
+      track('signup_started')
+      const { data, error: err } = await supabase.auth.signUp({
+        email: normalized,
+        password,
+        options: {
           data: {
             full_name: fullName.trim(),
             onboarding_completed: false,
           },
-        })
-        try {
-          await supabase.from('profiles').upsert({ id: data.user.id, display_name: fullName.trim() })
-        } catch (e) {
-          console.warn('[Supabase] Failed updating profile row')
-        }
+        },
+      })
+      setLoading(false)
+      if (err) {
+        setError(err.message)
+        return
+      }
+      showToast('Account created! Please check your email to verify.', 'success')
+      setIsSignUp(false)
+      setPassword('')
+    } else {
+      track('login_started')
+      const { data, error: err } = await supabase.auth.signInWithPassword({
+        email: normalized,
+        password,
+      })
+
+      if (err) {
+        setLoading(false)
+        setError(err.message)
+        return
       }
 
+      // STRICT EMAIL VERIFICATION GUARD
+      const user = data?.user
+      if (user && !user.email_confirmed_at) {
+        // Sign out immediately to invalidate session and show Toast alert!
+        await supabase.auth.signOut()
+        setLoading(false)
+        showToast('Verify your email first then login', 'error')
+        return
+      }
+
+      setLoading(false)
       track('login_success')
-    },
-    [email, lockoutEnd, failedAttempts, isSignUp, fullName]
-  )
-
-  const handleOtpChange = (val: string, index: number) => {
-    const digit = val.replace(/\D/g, '').slice(-1)
-    const next = [...otp]
-    next[index] = digit
-    setOtp(next)
-    if (digit && index < OTP_LENGTH - 1) otpRefs.current[index + 1]?.focus()
-    const code = next.join('')
-    if (code.length === OTP_LENGTH && !next.includes('')) handleVerifyOtp(code)
-  }
-
-  const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      const next = [...otp]
-      next[index - 1] = ''
-      setOtp(next)
-      otpRefs.current[index - 1]?.focus()
     }
-  }
-
-  const handleResend = async () => {
-    if (cooldown > 0) return
-    setLoading(true)
-    setError(null)
-    const { error: err } = await supabase.auth.signInWithOtp({ email: normalizeEmail(email) })
-    setLoading(false)
-    if (err) {
-      setError(err.message)
-      return
-    }
-    setCooldown(60)
-    setOtp(Array(OTP_LENGTH).fill(''))
-    setTimeout(() => otpRefs.current[0]?.focus(), 50)
-  }
-
-  const goBack = () => {
-    setStep('email')
-    setOtp(Array(OTP_LENGTH).fill(''))
-    setError(null)
-    setFailedAttempts(0)
-    setLockoutEnd(null)
-    setTimeout(() => emailRef.current?.focus(), 150)
   }
 
   const handleDevSkip = () => {
@@ -345,222 +231,147 @@ export default function LoginScreen() {
         >
           {/* Title above the card */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)} style={s.titleWrap}>
-            {step === 'email' ? (
-              <>
-                <Text style={s.titleBold}>{isSignUp ? 'Create Account ✨' : 'Welcome Back 👋'}</Text>
-                <Text style={s.sub}>
-                  {isSignUp
-                    ? 'Join Cal AI today for intelligent eating guidance'
-                    : 'Log in to continue your journey'}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={s.titleBold}>Check your inbox</Text>
-                <Text style={s.sub}>Enter the {OTP_LENGTH}-digit code sent to {normalizeEmail(email)}</Text>
-              </>
-            )}
+            <Text style={s.titleBold}>{isSignUp ? 'Create Account ✨' : 'Welcome Back 👋'}</Text>
+            <Text style={s.sub}>
+              {isSignUp
+                ? 'Join Cal AI today for intelligent eating guidance'
+                : 'Log in to continue your journey'}
+            </Text>
           </Animated.View>
 
           {/* Glassmorphism card */}
           <Animated.View entering={FadeInDown.delay(200).duration(400)}>
             <View style={s.card}>
               <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
-              {/* ── Email & Sign Up step ── */}
-              {step === 'email' && (
-                <View style={s.stepWrap}>
-                  {/* Signup Full Name field */}
-                  {isSignUp && (
-                    <View style={s.fieldGroup}>
-                      <Text style={s.label}>Full Name</Text>
-                      <View style={s.inputWrap}>
-                        <Ionicons name="person-outline" size={18} color="#666" style={s.inputIcon} />
-                        <RNTextInput
-                          value={fullName}
-                          onChangeText={(v) => {
-                            setFullName(v)
-                            setError(null)
-                          }}
-                          placeholder="Khadija"
-                          placeholderTextColor="#aaa"
-                          style={s.input}
-                          autoCapitalize="words"
-                          autoCorrect={false}
-                        />
-                      </View>
-                    </View>
-                  )}
-
+              
+              <View style={s.stepWrap}>
+                {/* Signup Full Name field */}
+                {isSignUp && (
                   <View style={s.fieldGroup}>
-                    <Text style={s.label}>Email Address</Text>
+                    <Text style={s.label}>Full Name</Text>
                     <View style={s.inputWrap}>
-                      <Ionicons name="mail-outline" size={18} color="#666" style={s.inputIcon} />
+                      <Ionicons name="person-outline" size={18} color="#666" style={s.inputIcon} />
                       <RNTextInput
-                        ref={emailRef}
-                        value={email}
+                        value={fullName}
                         onChangeText={(v) => {
-                          setEmail(v)
+                          setFullName(v)
                           setError(null)
                         }}
-                        placeholder="you@example.com"
+                        placeholder="Khadija"
                         placeholderTextColor="#aaa"
-                        style={[s.input, error ? s.inputErr : null]}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        onSubmitEditing={handleSendOtp}
-                        autoFocus
-                      />
-                    </View>
-                  </View>
-
-                  {/* Password Placeholder row */}
-                  <View style={s.fieldGroup}>
-                    <Text style={s.label}>Password</Text>
-                    <View style={s.inputWrap}>
-                      <Ionicons name="lock-closed-outline" size={18} color="#666" style={s.inputIcon} />
-                      <RNTextInput
-                        value=""
-                        placeholder="We'll send you an OTP code instead"
-                        placeholderTextColor="#999"
                         style={s.input}
-                        secureTextEntry
-                        editable={false}
+                        autoCapitalize="words"
+                        autoCorrect={false}
                       />
                     </View>
                   </View>
+                )}
 
-                  {error ? <ErrorBanner msg={error} /> : null}
-
-                  {/* Action button */}
-                  <Pressable
-                    onPress={handleSendOtp}
-                    disabled={loading || !email.trim() || (isSignUp && !fullName.trim())}
-                    style={({ pressed }) => ({
-                      opacity: loading || !email.trim() || (isSignUp && !fullName.trim()) ? 0.5 : pressed ? 0.88 : 1,
-                      borderRadius: 999,
-                      overflow: 'hidden',
-                    })}
-                  >
-                    <LinearGradient
-                      colors={['#7C3AED', '#4CAF50']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={s.btn}
-                    >
-                      {loading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={s.btnText}>{isSignUp ? 'Sign Up' : 'Log In'}</Text>
-                      )}
-                    </LinearGradient>
-                  </Pressable>
-
-                  {/* Divider */}
-                  <View style={s.dividerRow}>
-                    <View style={s.dividerLine} />
-                    <Text style={s.dividerText}>or continue with</Text>
-                    <View style={s.dividerLine} />
-                  </View>
-
-                  {/* Social buttons */}
-                  <View style={s.socialRow}>
-                    <Pressable
-                      onPress={handleGoogleLogin}
-                      style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.75 }]}
-                    >
-                      <Ionicons name="logo-google" size={17} color="#EA4335" />
-                      <Text style={s.socialBtnText}>Google</Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={handleAppleLogin}
-                      style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.75 }]}
-                    >
-                      <Ionicons name="logo-apple" size={17} color="#1A1A1A" />
-                      <Text style={s.socialBtnText}>Apple</Text>
-                    </Pressable>
+                <View style={s.fieldGroup}>
+                  <Text style={s.label}>Email Address</Text>
+                  <View style={s.inputWrap}>
+                    <Ionicons name="mail-outline" size={18} color="#666" style={s.inputIcon} />
+                    <RNTextInput
+                      ref={emailRef}
+                      value={email}
+                      onChangeText={(v) => {
+                        setEmail(v)
+                        setError(null)
+                      }}
+                      placeholder="you@example.com"
+                      placeholderTextColor="#aaa"
+                      style={[s.input, error ? s.inputErr : null]}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={handleAuth}
+                      autoFocus
+                    />
                   </View>
                 </View>
-              )}
 
-              {/* ── OTP Verification Step ── */}
-              {step === 'otp' && (
-                <View style={s.stepWrap}>
-                  <View style={s.otpRow}>
-                    {otp.map((digit, i) => (
-                      <RNTextInput
-                        key={i}
-                        ref={(r) => {
-                          otpRefs.current[i] = r
-                        }}
-                        value={digit}
-                        onChangeText={(v) => handleOtpChange(v, i)}
-                        onKeyPress={(e) => handleOtpKeyPress(e, i)}
-                        style={[
-                          s.otpBox,
-                          digit
-                            ? [s.otpBoxOn, { borderColor: ACCENT, backgroundColor: ACCENT_DIM }]
-                            : null,
-                          OTP_LENGTH > 6 ? { fontSize: 17, height: 48, borderRadius: 10 } : null,
-                        ]}
-                        keyboardType="number-pad"
-                        maxLength={1}
-                        selectTextOnFocus
-                        caretHidden
-                        editable={!loading}
+                {/* Password field */}
+                <View style={s.fieldGroup}>
+                  <Text style={s.label}>Password</Text>
+                  <View style={s.inputWrap}>
+                    <Ionicons name="lock-closed-outline" size={18} color="#666" style={s.inputIcon} />
+                    <RNTextInput
+                      value={password}
+                      onChangeText={(v) => {
+                        setPassword(v)
+                        setError(null)
+                      }}
+                      placeholder="At least 6 characters"
+                      placeholderTextColor="#aaa"
+                      style={s.input}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      onSubmitEditing={handleAuth}
+                    />
+                    <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={10}>
+                      <Ionicons 
+                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                        size={18} 
+                        color="#666" 
                       />
-                    ))}
-                  </View>
-
-                  {error ? <ErrorBanner msg={error} /> : null}
-
-                  {lockoutEnd ? (
-                    <Animated.View entering={FadeIn.duration(180)} style={s.lockoutBox}>
-                      <Text style={s.lockoutText}>
-                        Locked · {Math.floor(lockoutLeft / 60)}:
-                        {String(lockoutLeft % 60).padStart(2, '0')} remaining
-                      </Text>
-                    </Animated.View>
-                  ) : null}
-
-                  <Pressable
-                    onPress={() => handleVerifyOtp(otp.join(''))}
-                    disabled={loading || otp.includes('') || !!lockoutEnd}
-                    style={({ pressed }) => ({
-                      opacity: loading || otp.includes('') || !!lockoutEnd ? 0.4 : pressed ? 0.85 : 1,
-                      borderRadius: 999,
-                      overflow: 'hidden',
-                    })}
-                  >
-                    <LinearGradient
-                      colors={['#7C3AED', '#4CAF50']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={s.btn}
-                    >
-                      {loading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={s.btnText}>Verify Code</Text>
-                      )}
-                    </LinearGradient>
-                  </Pressable>
-
-                  <View style={s.otpMeta}>
-                    <Pressable onPress={handleResend} disabled={cooldown > 0} hitSlop={10}>
-                      <Text style={[s.resendText, cooldown > 0 && { color: '#ccc' }]}>
-                        {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
-                      </Text>
-                    </Pressable>
-                    <Text style={{ color: '#ccc' }}>·</Text>
-                    <Pressable onPress={goBack} hitSlop={10}>
-                      <Text style={{ color: '#888', fontSize: 13 }}>Change email</Text>
                     </Pressable>
                   </View>
                 </View>
-              )}
+
+                {error ? <ErrorBanner msg={error} /> : null}
+
+                {/* Action button */}
+                <Pressable
+                  onPress={handleAuth}
+                  disabled={loading || !email.trim() || !password.trim() || (isSignUp && !fullName.trim())}
+                  style={({ pressed }) => ({
+                    opacity: loading || !email.trim() || !password.trim() || (isSignUp && !fullName.trim()) ? 0.5 : pressed ? 0.88 : 1,
+                    borderRadius: 999,
+                    overflow: 'hidden',
+                  })}
+                >
+                  <LinearGradient
+                    colors={['#7C3AED', '#4CAF50']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={s.btn}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={s.btnText}>{isSignUp ? 'Sign Up' : 'Log In'}</Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Divider */}
+                <View style={s.dividerRow}>
+                  <View style={s.dividerLine} />
+                  <Text style={s.dividerText}>or continue with</Text>
+                  <View style={s.dividerLine} />
+                </View>
+
+                {/* Social buttons */}
+                <View style={s.socialRow}>
+                  <Pressable
+                    onPress={handleGoogleLogin}
+                    style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.75 }]}
+                  >
+                    <Ionicons name="logo-google" size={17} color="#EA4335" />
+                    <Text style={s.socialBtnText}>Google</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleAppleLogin}
+                    style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.75 }]}
+                  >
+                    <Ionicons name="logo-apple" size={17} color="#1A1A1A" />
+                    <Text style={s.socialBtnText}>Apple</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
           </Animated.View>
 
