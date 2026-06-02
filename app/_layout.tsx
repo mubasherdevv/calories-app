@@ -132,6 +132,49 @@ function RootLayout() {
   const [i18nReady, setI18nReady] = useState(false)
 
   useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const style = document.createElement('style')
+      style.innerHTML = `
+        html, body, #root {
+          height: 100% !important;
+          width: 100% !important;
+          overflow: hidden !important;
+          position: fixed !important;
+          background-color: ${BG} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          -webkit-overflow-scrolling: touch;
+        }
+      `
+      document.head.appendChild(style)
+
+      const preventDefault = (e: TouchEvent) => {
+        if (e.touches.length > 1) return
+        let target = e.target as HTMLElement | null
+        let isScrollable = false
+        while (target) {
+          if (target === document.body) break
+          const overflowY = window.getComputedStyle(target).overflowY
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            isScrollable = true
+            break
+          }
+          target = target.parentElement
+        }
+        if (!isScrollable) {
+          e.preventDefault()
+        }
+      }
+
+      document.addEventListener('touchmove', preventDefault, { passive: false })
+      return () => {
+        document.removeEventListener('touchmove', preventDefault)
+        document.head.removeChild(style)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     initI18n().then(() => setI18nReady(true))
   }, [])
 
