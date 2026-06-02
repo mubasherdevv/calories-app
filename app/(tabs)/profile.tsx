@@ -172,7 +172,7 @@ export default function ProfileScreen() {
       <View style={s.headerRow}>
         <View style={s.avatarContainer}>
           <Image
-            source={require('../../assets/avatar.png')}
+            source={require('../../assets/avatar.jpg')}
             style={s.avatar}
           />
           <View style={s.verifiedDot}>

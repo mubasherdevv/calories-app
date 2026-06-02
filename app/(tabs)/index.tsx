@@ -206,7 +206,7 @@ export default function HomeScreen() {
           <View style={s.coachProfile}>
             {/* Round avatar headshot with status dot */}
             <View style={s.avatarWrap}>
-              <Image source={require('../../assets/avatar.png')} style={s.avatar as any} />
+              <Image source={require('../../assets/avatar.jpg')} style={s.avatar as any} />
               <View style={s.statusDot} />
             </View>
             <View style={{ flex: 1, flexShrink: 1 }}>

@@ -156,8 +156,8 @@ export default function LoginScreen() {
           <Image
             source={
               isSignUp
-                ? require('../../assets/signup-illustration.png')
-                : require('../../assets/login-illustration.png')
+                ? require('../../assets/signup-illustration.jpg')
+                : require('../../assets/login-illustration.jpg')
             }
             style={s.illustration}
             resizeMode="contain"
