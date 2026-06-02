@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   View, Pressable, StyleSheet, Dimensions,
-  ImageBackground, StatusBar,
+  ImageBackground, StatusBar, PanResponder, Animated as RNAnimated, Platform,
 } from 'react-native'
+import { BlurView } from 'expo-blur'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, {
@@ -23,9 +24,9 @@ const { width: SW, height: SH } = Dimensions.get('window')
 
 // Calorie badge data (floating pills on the landing screen)
 const BADGES = [
-  { label: '132 Kcal', color: '#F59E0B', x: SW * 0.52, y: SH * 0.38 },
-  { label: '104 Kcal', color: ACCENT,    x: SW * 0.06, y: SH * 0.50 },
-  { label: '320 Kcal', color: '#60A5FA', x: SW * 0.48, y: SH * 0.62 },
+  { label: 'AI Scan 📸', color: ACCENT,    x: SW * 0.52, y: SH * 0.38 },
+  { label: 'Track 🥗',   color: '#F59E0B', x: SW * 0.06, y: SH * 0.50 },
+  { label: 'Analyze 🧠', color: '#60A5FA', x: SW * 0.48, y: SH * 0.62 },
 ]
 
 export default function LandingScreen() {
@@ -41,6 +42,65 @@ export default function LandingScreen() {
   const b0Y = useSharedValue(0)
   const b1Y = useSharedValue(0)
   const b2Y = useSharedValue(0)
+
+  // Slider animation and responder variables
+  const sliderWidth = SW - 32 - 40 // SW - 32 (margins) - 40 (paddings)
+  const handleSize = 48
+  const maxDistance = sliderWidth - handleSize - 8 // 8px inside margin
+
+  const pan = useRef(new RNAnimated.Value(0)).current
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (e, gestureState) => {
+        const val = Math.max(0, Math.min(gestureState.dx, maxDistance))
+        pan.setValue(val)
+      },
+      onPanResponderRelease: (e, gestureState) => {
+        if (gestureState.dx >= maxDistance * 0.75) {
+          // Slide fully completed! Animate handle to the end and navigate.
+          RNAnimated.timing(pan, {
+            toValue: maxDistance,
+            duration: 150,
+            useNativeDriver: true,
+          }).start(() => {
+            router.push('/(auth)/login')
+            // Spring back handle after transition completes
+            setTimeout(() => {
+              RNAnimated.spring(pan, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+              }).start()
+            }, 1000)
+          })
+        } else {
+          // Slide not completed, spring back to start
+          RNAnimated.spring(pan, {
+            toValue: 0,
+            friction: 8,
+            useNativeDriver: true,
+          }).start()
+        }
+      },
+    })
+  ).current
+
+  const textOpacity = pan.interpolate({
+    inputRange: [0, maxDistance * 0.6],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
+
+  const textStyle = {
+    opacity: textOpacity,
+  }
+
+  const handleStyle = {
+    transform: [{ translateX: pan }],
+  }
 
   useEffect(() => {
     titleY.value  = withSpring(0, { damping: 14, stiffness: 100 })
@@ -77,22 +137,23 @@ export default function LandingScreen() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
-      {/* Full-screen food background image */}
+      {/* Full-screen food background image with slight blur for high readability */}
       <ImageBackground
         source={require('../assets/food-bg.jpg')}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
+        blurRadius={Platform.OS === 'ios' ? 4 : 3}
       >
         {/* Dark overlay at bottom for text readability */}
         <View style={s.overlay} />
       </ImageBackground>
 
-      {/* App logo top-left */}
+      {/* App logo top-left (enlarged per request) */}
       <View style={[s.logoRow, { marginTop: insets.top + 16 }]}>
         <View style={s.logoBadge}>
-          <Ionicons name="leaf" size={18} color="#fff" />
+          <Ionicons name="leaf" size={20} color="#fff" />
         </View>
         <Text style={s.logoText}>FitBite</Text>
       </View>
@@ -118,14 +179,23 @@ export default function LandingScreen() {
         ))}
       </Animated.View>
 
-      {/* Bottom CTA */}
-      <Animated.View style={[s.footer, { paddingBottom: insets.bottom + 24 }, footerStyle]}>
-        <Pressable
-          onPress={() => router.push('/(auth)/login')}
-          style={({ pressed }) => [s.getStartedBtn, pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] }]}
-        >
-          <Text style={s.getStartedText}>Get Started  →</Text>
-        </Pressable>
+      {/* Floating Glassmorphism Footer panel */}
+      <Animated.View style={[s.footer, { paddingBottom: insets.bottom + 12 }, footerStyle]}>
+        {Platform.OS === 'ios' && <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />}
+
+        {/* Premium Interactive Swipe-to-Start Button */}
+        <View style={s.sliderTrack}>
+          <RNAnimated.Text style={[s.sliderText, textStyle]}>
+            Slide to Get Started  →
+          </RNAnimated.Text>
+
+          <RNAnimated.View
+            {...panResponder.panHandlers}
+            style={[s.sliderHandle, handleStyle]}
+          >
+            <Ionicons name="chevron-forward" size={20} color={ACCENT} />
+          </RNAnimated.View>
+        </View>
 
         <Pressable
           onPress={() => router.push('/(auth)/login')}
@@ -150,17 +220,23 @@ const s = StyleSheet.create({
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
+    gap: 10,
+    paddingHorizontal: 24,
     zIndex: 10,
   },
   logoBadge: {
-    width: 36, height: 36, borderRadius: 999,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: ACCENT,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
   },
   logoText: {
-    fontSize: 17, fontWeight: '700', color: '#fff',
+    fontSize: 21, fontWeight: '900', color: '#fff',
+    letterSpacing: -0.4,
   },
 
   // Title
@@ -208,32 +284,71 @@ const s = StyleSheet.create({
     fontSize: 14, fontWeight: '700', color: '#1A1A1A',
   },
 
-  // Footer
+  // Floating Glassmorphism Footer Card
   footer: {
     position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 24,
-    gap: 14,
+    bottom: 20, left: 16, right: 16,
+    borderRadius: 32,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      },
+      default: {},
+    }),
+    gap: 16,
     alignItems: 'center',
     zIndex: 10,
   },
-  getStartedBtn: {
+
+  // Swipe-to-Start Button styling
+  sliderTrack: {
     width: '100%',
     height: 56,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    position: 'relative',
+  },
+  sliderText: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  sliderHandle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4,
+    ...Platform.select({
+      web: {
+        cursor: 'grab' as any,
+      },
+      default: {},
+    }),
   },
-  getStartedText: {
-    fontSize: 16, fontWeight: '800', color: '#1A1A1A',
-    letterSpacing: 0.2,
-  },
+
   loginBtn: { paddingVertical: 4 },
   loginText: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
   loginLink: { color: ACCENT, fontWeight: '700' },
