@@ -7,6 +7,11 @@
     "scheme": "myapp",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#0d0d0d",
+      "translucent": true
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -30,11 +35,6 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
-      "androidStatusBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#0d0d0d",
-        "translucent": true
-      },
       "predictiveBackGestureEnabled": false,
       "intentFilters": [
         {
@@ -76,7 +76,8 @@
           "project": "react-native",
           "organization": "your-org"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},
