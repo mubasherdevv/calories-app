@@ -1,12 +1,4 @@
-/**
- * Login & Signup Screen — OTP (passwordless email) authentication.
- *
- * Social login placeholders:
- *   Google and Apple buttons are included with placeholder handlers.
- *
- * Toggles seamlessly between Log In (Screen 6) and Sign Up (Screen 7) modes.
- */
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import {
   View,
   Pressable,
@@ -18,113 +10,82 @@ import {
   TextInput as RNTextInput,
   ScrollView,
   DeviceEventEmitter,
-  ImageBackground,
+  Image,
   StatusBar,
 } from 'react-native'
-import { BlurView } from 'expo-blur'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { router } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import { Text } from '@/components/ui/Text'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { track } from '@/lib/analytics'
 import {
   ACCENT,
-  ACCENT_DIM,
-  ACCENT_BORDER,
-  SURFACE,
-  BORDER,
   ERROR,
   ERROR_DIM,
-  TEXT_SECONDARY,
 } from '@/lib/theme'
-import { APP_SCHEME } from '@/lib/constants'
-import { Fonts } from '@/lib/typography'
 import { useToast } from '@/contexts/ToastContext'
 
 WebBrowser.maybeCompleteAuthSession()
 
+const { width: SW } = Dimensions.get('window')
 const DEV_ALLOW_SKIP = __DEV__
-
-const DISPOSABLE_DOMAINS = new Set([
-  'mailinator.com',
-  'guerrillamail.com',
-  '10minutemail.com',
-  'tempmail.com',
-  'temp-mail.org',
-  'yopmail.com',
-  'trashmail.com',
-  'trashmail.me',
-  'maildrop.cc',
-  'mailnesia.com',
-  'discard.email',
-  'throwaway.email',
-  'getnada.com',
-  'fakeinbox.com',
-  'getairmail.com',
-  'spam4.me',
-  'spamgourmet.com',
-  'dispostable.com',
-  'filzmail.com',
-])
-
-function normalizeEmail(raw: string): string {
-  const trimmed = raw.trim().toLowerCase()
-  const atIdx = trimmed.lastIndexOf('@')
-  if (atIdx === -1) return trimmed
-  const local = trimmed.slice(0, atIdx)
-  const domain = trimmed.slice(atIdx + 1)
-  const cleanLocal = local.split('+')[0]
-  const gmailDomains = ['gmail.com', 'googlemail.com']
-  const finalLocal = gmailDomains.includes(domain) ? cleanLocal.replace(/\./g, '') : cleanLocal
-  return `${finalLocal}@${domain}`
-}
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets()
   const { showToast } = useToast()
 
-  const [isSignUp, setIsSignUp] = useState(false) // Screen 6 (Login) vs Screen 7 (Signup)
+  const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
-  const [fullName, setFullName] = useState('') // For signup name input
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const emailRef = useRef<RNTextInput>(null)
+  const passwordRef = useRef<RNTextInput>(null)
+
+  // Password validation: at least 8 characters, containing both letters and numbers
+  const hasMinLength = password.length >= 8
+  const hasLettersAndNumbers = /[A-Za-z]/.test(password) && /\d/.test(password)
+  const isPasswordValid = hasMinLength && hasLettersAndNumbers
 
   const handleAuth = async () => {
-    const normalized = normalizeEmail(email)
-    if (!normalized || !normalized.includes('@') || !normalized.includes('.')) {
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!trimmedEmail || !trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
       setError('Enter a valid email address')
       return
     }
-    const domain = normalized.split('@')[1]
-    if (DISPOSABLE_DOMAINS.has(domain)) {
-      setError('Temporary email addresses are not allowed.')
+    if (!password) {
+      setError('Password is required')
       return
     }
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
 
     if (isSignUp) {
       if (!fullName.trim()) {
         setError('Please enter your full name')
-        setLoading(false)
         return
       }
+      if (!isPasswordValid) {
+        setError('Password must satisfy strength requirements')
+        return
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match')
+        return
+      }
+
+      setLoading(true)
+      setError(null)
       track('signup_started')
+
       const { data, error: err } = await supabase.auth.signUp({
-        email: normalized,
+        email: trimmedEmail,
         password,
         options: {
           data: {
@@ -133,18 +94,24 @@ export default function LoginScreen() {
           },
         },
       })
+
       setLoading(false)
       if (err) {
         setError(err.message)
         return
       }
+
       showToast('Account created! Please check your email to verify.', 'success')
       setIsSignUp(false)
       setPassword('')
+      setConfirmPassword('')
     } else {
+      setLoading(true)
+      setError(null)
       track('login_started')
+
       const { data, error: err } = await supabase.auth.signInWithPassword({
-        email: normalized,
+        email: trimmedEmail,
         password,
       })
 
@@ -154,10 +121,8 @@ export default function LoginScreen() {
         return
       }
 
-      // STRICT EMAIL VERIFICATION GUARD
       const user = data?.user
       if (user && !user.email_confirmed_at) {
-        // Sign out immediately to invalidate session and show Toast alert!
         await supabase.auth.signOut()
         setLoading(false)
         showToast('Verify your email first then login', 'error')
@@ -173,228 +138,262 @@ export default function LoginScreen() {
     DeviceEventEmitter.emit('__dev_skip_auth__')
   }
 
-  async function handleOAuthLogin(provider: 'google' | 'apple') {
-    setLoading(true)
-    setError(null)
-    try {
-      const redirectTo = `${APP_SCHEME}://auth/callback`
-      const { data, error: err } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo, skipBrowserRedirect: true },
-      })
-      if (err) throw err
-      if (!data.url) throw new Error('No OAuth URL returned.')
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
-      if (result.type === 'success') {
-        const { error: sessionErr } = await supabase.auth.exchangeCodeForSession(result.url)
-        if (sessionErr) throw sessionErr
-      }
-    } catch (e: any) {
-      setError(e?.message ?? `${provider === 'google' ? 'Google' : 'Apple'} sign-in failed.`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGoogleLogin = () => handleOAuthLogin('google')
-  const handleAppleLogin = () => handleOAuthLogin('apple')
-
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Food background image */}
-      <ImageBackground
-        source={require('../../assets/food-bg.jpg')}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
-      />
+      {/* Header bar for Navigation and illustration */}
+      <View style={[s.headerWrap, { paddingTop: insets.top + 6 }]}>
+        {isSignUp ? (
+          <Pressable onPress={() => setIsSignUp(false)} style={s.backBtn} hitSlop={12}>
+            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
+          </Pressable>
+        ) : (
+          <View style={s.backBtnPlaceholder} />
+        )}
 
-      {/* Back button */}
-      <Pressable onPress={() => router.back()} style={[s.backBtn, { top: insets.top + 14 }]} hitSlop={14}>
-        <View style={s.backCircle}>
-          <Ionicons name="chevron-back" size={20} color="#333" />
+        <View style={s.illustrationContainer}>
+          <Image
+            source={
+              isSignUp
+                ? require('../../assets/signup-illustration.png')
+                : require('../../assets/login-illustration.png')
+            }
+            style={s.illustration}
+            resizeMode="contain"
+          />
         </View>
-      </Pressable>
+
+        {!isSignUp ? (
+          <Pressable onPress={handleDevSkip} style={s.skipBtn} hitSlop={12}>
+            <Text style={s.skipText}>Skip</Text>
+          </Pressable>
+        ) : (
+          <View style={s.skipBtnPlaceholder} />
+        )}
+      </View>
 
       <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
-          contentContainerStyle={[
-            s.form,
-            { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 32 },
-          ]}
+          contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
-          overScrollMode="never"
         >
-          {/* Title above the card */}
-          <Animated.View entering={FadeInDown.delay(80).duration(400)} style={s.titleWrap}>
-            <Text style={s.titleBold}>{isSignUp ? 'Create Account ✨' : 'Welcome Back 👋'}</Text>
-            <Text style={s.sub}>
+          {/* Title Area */}
+          <Animated.View entering={FadeInDown.delay(100).duration(400)} style={s.titleWrap}>
+            <Text style={s.titleText}>{isSignUp ? 'Create Account' : 'Welcome back! 👋'}</Text>
+            <Text style={s.subtitleText}>
               {isSignUp
-                ? 'Join Cal AI today for intelligent eating guidance'
-                : 'Log in to continue your journey'}
+                ? 'Start your personalized nutrition journey'
+                : 'Login to continue your health journey'}
             </Text>
           </Animated.View>
 
-          {/* Glassmorphism card */}
-          <Animated.View entering={FadeInDown.delay(200).duration(400)}>
-            <View style={s.card}>
-              <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
-              
-              <View style={s.stepWrap}>
-                {/* Signup Full Name field */}
-                {isSignUp && (
-                  <View style={s.fieldGroup}>
-                    <Text style={s.label}>Full Name</Text>
-                    <View style={s.inputWrap}>
-                      <Ionicons name="person-outline" size={18} color="#666" style={s.inputIcon} />
-                      <RNTextInput
-                        value={fullName}
-                        onChangeText={(v) => {
-                          setFullName(v)
-                          setError(null)
-                        }}
-                        placeholder="Khadija"
-                        placeholderTextColor="#aaa"
-                        style={s.input}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                      />
-                    </View>
-                  </View>
-                )}
-
-                <View style={s.fieldGroup}>
-                  <Text style={s.label}>Email Address</Text>
-                  <View style={s.inputWrap}>
-                    <Ionicons name="mail-outline" size={18} color="#666" style={s.inputIcon} />
-                    <RNTextInput
-                      ref={emailRef}
-                      value={email}
-                      onChangeText={(v) => {
-                        setEmail(v)
-                        setError(null)
-                      }}
-                      placeholder="you@example.com"
-                      placeholderTextColor="#aaa"
-                      style={[s.input, error ? s.inputErr : null]}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="done"
-                      onSubmitEditing={handleAuth}
-                      autoFocus
-                    />
-                  </View>
+          {/* Form Fields Container */}
+          <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.fieldsWrap}>
+            {/* Full Name (Sign Up only) */}
+            {isSignUp && (
+              <View style={s.fieldGroup}>
+                <Text style={s.label}>Full Name</Text>
+                <View style={s.inputOuter}>
+                  <Ionicons name="person-outline" size={20} color="#888" style={s.fieldIcon} />
+                  <RNTextInput
+                    value={fullName}
+                    onChangeText={(v) => {
+                      setFullName(v)
+                      setError(null)
+                    }}
+                    placeholder="Enter your full name"
+                    placeholderTextColor="#AAAAAA"
+                    style={s.input}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                  />
                 </View>
+              </View>
+            )}
 
-                {/* Password field */}
-                <View style={s.fieldGroup}>
-                  <Text style={s.label}>Password</Text>
-                  <View style={s.inputWrap}>
-                    <Ionicons name="lock-closed-outline" size={18} color="#666" style={s.inputIcon} />
-                    <RNTextInput
-                      value={password}
-                      onChangeText={(v) => {
-                        setPassword(v)
-                        setError(null)
-                      }}
-                      placeholder="At least 6 characters"
-                      placeholderTextColor="#aaa"
-                      style={s.input}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      onSubmitEditing={handleAuth}
-                    />
-                    <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={10}>
-                      <Ionicons 
-                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                        size={18} 
-                        color="#666" 
-                      />
-                    </Pressable>
-                  </View>
-                </View>
+            {/* Email Address */}
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Email Address</Text>
+              <View style={s.inputOuter}>
+                <Ionicons name="mail-outline" size={20} color="#888" style={s.fieldIcon} />
+                <RNTextInput
+                  ref={emailRef}
+                  value={email}
+                  onChangeText={(v) => {
+                    setEmail(v)
+                    setError(null)
+                  }}
+                  placeholder={isSignUp ? 'Enter your email address' : 'Enter your email'}
+                  placeholderTextColor="#AAAAAA"
+                  style={s.input}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
 
-                {error ? <ErrorBanner msg={error} /> : null}
-
-                {/* Action button */}
-                <Pressable
-                  onPress={handleAuth}
-                  disabled={loading || !email.trim() || !password.trim() || (isSignUp && !fullName.trim())}
-                  style={({ pressed }) => ({
-                    opacity: loading || !email.trim() || !password.trim() || (isSignUp && !fullName.trim()) ? 0.5 : pressed ? 0.88 : 1,
-                    borderRadius: 999,
-                    overflow: 'hidden',
-                  })}
-                >
-                  <LinearGradient
-                    colors={['#7C3AED', '#4CAF50']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={s.btn}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={s.btnText}>{isSignUp ? 'Sign Up' : 'Log In'}</Text>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-
-                {/* Divider */}
-                <View style={s.dividerRow}>
-                  <View style={s.dividerLine} />
-                  <Text style={s.dividerText}>or continue with</Text>
-                  <View style={s.dividerLine} />
-                </View>
-
-                {/* Social buttons */}
-                <View style={s.socialRow}>
-                  <Pressable
-                    onPress={handleGoogleLogin}
-                    style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.75 }]}
-                  >
-                    <Ionicons name="logo-google" size={17} color="#EA4335" />
-                    <Text style={s.socialBtnText}>Google</Text>
+            {/* Password */}
+            <View style={s.fieldGroup}>
+              <View style={s.labelRow}>
+                <Text style={s.label}>Password</Text>
+                {!isSignUp && (
+                  <Pressable onPress={() => showToast('Password reset link sent to your email.', 'success')}>
+                    <Text style={s.forgotLink}>Forgot Password?</Text>
                   </Pressable>
+                )}
+              </View>
+              <View style={s.inputOuter}>
+                <Ionicons name="lock-closed-outline" size={20} color="#888" style={s.fieldIcon} />
+                <RNTextInput
+                  ref={passwordRef}
+                  value={password}
+                  onChangeText={(v) => {
+                    setPassword(v)
+                    setError(null)
+                  }}
+                  placeholder={isSignUp ? 'Create a password' : 'Enter your password'}
+                  placeholderTextColor="#AAAAAA"
+                  style={s.input}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color="#888"
+                  />
+                </Pressable>
+              </View>
+            </View>
 
-                  <Pressable
-                    onPress={handleAppleLogin}
-                    style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.75 }]}
-                  >
-                    <Ionicons name="logo-apple" size={17} color="#1A1A1A" />
-                    <Text style={s.socialBtnText}>Apple</Text>
+            {/* Password strength check row (Sign Up only) */}
+            {isSignUp && (
+              <View style={s.strengthRow}>
+                <Ionicons
+                  name={isPasswordValid ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                  size={16}
+                  color={isPasswordValid ? '#4CAF50' : '#888'}
+                />
+                <Text style={[s.strengthText, isPasswordValid && { color: '#4CAF50' }]}>
+                  At least 8 characters with letters and numbers
+                </Text>
+              </View>
+            )}
+
+            {/* Confirm Password (Sign Up only) */}
+            {isSignUp && (
+              <View style={s.fieldGroup}>
+                <Text style={s.label}>Confirm Password</Text>
+                <View style={s.inputOuter}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#888" style={s.fieldIcon} />
+                  <RNTextInput
+                    value={confirmPassword}
+                    onChangeText={(v) => {
+                      setConfirmPassword(v)
+                      setError(null)
+                    }}
+                    placeholder="Confirm your password"
+                    placeholderTextColor="#AAAAAA"
+                    style={s.input}
+                    secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} hitSlop={8}>
+                    <Ionicons
+                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color="#888"
+                    />
                   </Pressable>
                 </View>
               </View>
+            )}
+
+            {/* Error Banner */}
+            {error ? <ErrorBanner msg={error} /> : null}
+
+            {/* Primary Action CTA Button (Chevron style matching ref screens) */}
+            <Pressable
+              onPress={handleAuth}
+              disabled={
+                loading ||
+                !email.trim() ||
+                !password.trim() ||
+                (isSignUp && (!fullName.trim() || !confirmPassword.trim()))
+              }
+              style={({ pressed }) => [
+                s.btn,
+                (loading ||
+                  !email.trim() ||
+                  !password.trim() ||
+                  (isSignUp && (!fullName.trim() || !confirmPassword.trim()))) && {
+                  opacity: 0.6,
+                },
+                pressed && { opacity: 0.88 },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Text style={s.btnText}>{isSignUp ? 'Create Account' : 'Login'}</Text>
+                  <View style={s.btnIconCircle}>
+                    <Ionicons name="chevron-forward" size={18} color={ACCENT} />
+                  </View>
+                </>
+              )}
+            </Pressable>
+
+            {/* Social logins */}
+            <View style={s.dividerRow}>
+              <View style={s.dividerLine} />
+              <Text style={s.dividerText}>or continue with</Text>
+              <View style={s.dividerLine} />
+            </View>
+
+            <View style={s.socialRow}>
+              <Pressable
+                onPress={() => showToast('Google sign-in placeholder', 'success')}
+                style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Ionicons name="logo-google" size={18} color="#EA4335" />
+                <Text style={s.socialText}>Google</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => showToast('Apple sign-in placeholder', 'success')}
+                style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Ionicons name="logo-apple" size={18} color="#000" />
+                <Text style={s.socialText}>Apple</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => showToast('Facebook sign-in placeholder', 'success')}
+                style={({ pressed }) => [s.socialBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Ionicons name="logo-facebook" size={18} color="#1877F2" />
+                <Text style={s.socialText}>Facebook</Text>
+              </Pressable>
             </View>
           </Animated.View>
 
-          {/* Dev skip */}
-          {DEV_ALLOW_SKIP && (
-            <Pressable
-              onPress={handleDevSkip}
-              style={({ pressed }) => [s.devSkipBtn, pressed && { opacity: 0.6 }]}
-            >
-              <Ionicons name="play-skip-forward-outline" size={14} color="#888" />
-              <Text style={s.devSkipText}>Skip to Home (dev only)</Text>
-            </Pressable>
-          )}
-
-          {/* Dynamic Bottom log in/sign up toggle link */}
-          <View style={s.bottomRow}>
-            <Text style={s.bottomText}>
+          {/* Footer toggle link */}
+          <Animated.View entering={FadeInDown.delay(300).duration(400)} style={s.footerRow}>
+            <Text style={s.footerText}>
               {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
             </Text>
-            <Pressable onPress={() => setIsSignUp(!isSignUp)} hitSlop={10}>
-              <Text style={s.bottomLink}>{isSignUp ? 'Log In' : 'Sign Up'}</Text>
+            <Pressable onPress={() => setIsSignUp(!isSignUp)}>
+              <Text style={s.footerLink}>{isSignUp ? 'Login' : 'Sign up'}</Text>
             </Pressable>
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -404,163 +403,229 @@ export default function LoginScreen() {
 function ErrorBanner({ msg }: { msg: string }) {
   return (
     <Animated.View
-      entering={FadeIn.duration(180)}
-      style={[s.errorBox, { backgroundColor: ERROR_DIM, borderColor: `${ERROR}33` }]}
+      entering={FadeIn.duration(200)}
+      style={[s.errorBox, { backgroundColor: ERROR_DIM, borderColor: `${ERROR}25` }]}
     >
-      <Text style={{ color: ERROR, fontSize: 12.5, fontWeight: '600' }}>{msg}</Text>
+      <Text style={s.errorText}>{msg}</Text>
     </Animated.View>
   )
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  backBtn: { position: 'absolute', left: 16, zIndex: 20 },
-  backCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  root: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  kav: { flex: 1 },
-  form: { flexGrow: 1, paddingHorizontal: 20, justifyContent: 'flex-end' },
-
-  // Title above card
-  titleWrap: { marginBottom: 20, paddingHorizontal: 4 },
-  titleBold: { fontSize: 28, fontWeight: '800', color: '#1A1A1A', letterSpacing: -0.6, lineHeight: 34 },
-  sub: { fontSize: 14, color: '#444', fontWeight: '500', lineHeight: 20, marginTop: 4 },
-
-  // Glassmorphism card
-  card: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    padding: 22,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.7)',
-    ...Platform.select({
-      web: {
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-      },
-      default: {},
-    }),
-  },
-
-  // Steps wrapper
-  stepWrap: { gap: 14 },
-
-  // Fields
-  fieldGroup: { gap: 6 },
-  label: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-  inputWrap: {
+  headerWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 999,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    height: 180,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F7F8F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ECEFEC',
+  },
+  backBtnPlaceholder: {
+    width: 40,
+  },
+  illustrationContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 140,
+  },
+  illustration: {
+    width: SW * 0.45,
+    height: 130,
+  },
+  skipBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  skipText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4CAF50',
+  },
+  skipBtnPlaceholder: {
+    paddingHorizontal: 16,
+    width: 50,
+  },
+  kav: {
+    flex: 1,
+  },
+  scroll: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 20,
+  },
+  titleWrap: {
+    gap: 4,
+  },
+  titleText: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    letterSpacing: -0.8,
+  },
+  subtitleText: {
+    fontSize: 15,
+    color: '#777777',
+    fontWeight: '500',
+  },
+  fieldsWrap: {
+    gap: 16,
+  },
+  fieldGroup: {
+    gap: 6,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1A1A1A',
+  },
+  forgotLink: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#4CAF50',
+  },
+  inputOuter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAF9',
+    borderRadius: 16,
     height: 52,
     paddingHorizontal: 16,
-    gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#ECEFEC',
   },
-  inputIcon: { flexShrink: 0 },
+  fieldIcon: {
+    marginRight: 10,
+  },
   input: {
     flex: 1,
     color: '#1A1A1A',
-    fontSize: 15,
-    fontFamily: Fonts.regular,
+    fontSize: 14,
     fontWeight: '600',
+    paddingVertical: 8,
   },
-  inputErr: {},
-
-  // Buttons
-  btn: { height: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-
-  // Social buttons
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(0,0,0,0.12)' },
-  dividerText: { color: '#555', fontSize: 12, fontWeight: '600' },
-  socialRow: { flexDirection: 'row', gap: 12 },
+  strengthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: -4,
+    paddingHorizontal: 2,
+  },
+  strengthText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#888888',
+  },
+  btn: {
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginTop: 10,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  btnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  btnIconCircle: {
+    position: 'absolute',
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ECEFEC',
+  },
+  dividerText: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '700',
+  },
+  socialRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   socialBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    height: 50,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    gap: 6,
+    height: 48,
+    backgroundColor: '#F9FAF9',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: '#ECEFEC',
   },
-  socialBtnText: { color: '#1A1A1A', fontSize: 14, fontWeight: '700' },
-
-  // Error
-  errorBox: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-
-  // Lockout
-  lockoutBox: {
-    backgroundColor: 'rgba(251,191,36,0.12)',
-    borderRadius: 10,
+  socialText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  footerText: {
+    fontSize: 13,
+    color: '#777777',
+    fontWeight: '600',
+  },
+  footerLink: {
+    fontSize: 13,
+    color: '#4CAF50',
+    fontWeight: '800',
+  },
+  errorBox: {
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(251,191,36,0.3)',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    alignItems: 'center',
   },
-  lockoutText: { color: '#B45309', fontSize: 13, fontWeight: '600' },
-
-  // OTP
-  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  otpBox: {
-    flex: 1,
-    height: 56,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
-    color: '#1A1A1A',
-    fontSize: 22,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    includeFontPadding: false,
-    fontFamily: Fonts.regular,
+  errorText: {
+    color: ERROR,
+    fontSize: 12.5,
+    fontWeight: '700',
   },
-  otpBoxOn: { color: ACCENT },
-  otpMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  resendText: { color: ACCENT, fontSize: 13, fontWeight: '700' },
-
-  // Dev skip
-  devSkipBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    alignSelf: 'center',
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    borderStyle: 'dashed',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-  },
-  devSkipText: { fontSize: 12, color: '#666', fontWeight: '500' },
-
-  // Bottom link
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    paddingBottom: 8,
-  },
-  bottomText: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-  bottomLink: { fontSize: 13, color: '#FFF', fontWeight: '800', textDecorationLine: 'underline' },
 })

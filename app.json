@@ -77,7 +77,8 @@
           "organization": "your-org"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "@sentry/react-native"
     ],
     "extra": {
       "router": {},
