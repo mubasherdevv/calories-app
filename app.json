@@ -76,8 +76,7 @@
           "project": "react-native",
           "organization": "your-org"
         }
-      ],
-      "@sentry/react-native"
+      ]
     ],
     "extra": {
       "router": {},
