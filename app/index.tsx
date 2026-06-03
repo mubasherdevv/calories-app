@@ -162,7 +162,7 @@ export default function LandingScreen() {
       </Animated.View>
 
       {/* Floating Glassmorphism Footer panel */}
-      <Animated.View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }, footerStyle]}>
+      <Animated.View style={[s.footer, footerStyle]}>
         {Platform.OS === 'ios' && <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />}
 
         {/* Premium Interactive Swipe-to-Start Button */}
@@ -266,13 +266,13 @@ const s = StyleSheet.create({
     fontSize: 14, fontWeight: '700', color: '#1A1A1A',
   },
 
-  // Floating Glassmorphism Footer Card
   footer: {
     position: 'absolute',
     bottom: 34, left: 16, right: 16,
     borderRadius: 32,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.42)',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.15)',
