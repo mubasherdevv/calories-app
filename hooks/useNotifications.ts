@@ -6,17 +6,24 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 const isAndroidExpoGo = Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 let Notifications: any = null;
-if (!isAndroidExpoGo && Platform.OS !== 'web') {
-  Notifications = require('expo-notifications');
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
+if (Platform.OS !== 'web') {
+  try {
+    Notifications = require('expo-notifications');
+    if (Notifications && typeof Notifications.setNotificationHandler === 'function') {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    }
+  } catch (error) {
+    console.warn('Failed to load or initialize expo-notifications:', error);
+    Notifications = null;
+  }
 }
 
 export function useNotifications() {
