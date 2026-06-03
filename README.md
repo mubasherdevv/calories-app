@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🥗 NutriLens AI Calorie Tracker</h1>
+  <h1>🥗 SnapBite -  AI Calorie Tracker</h1>
   <p><strong>Your intelligent companion for seamless nutrition tracking.</strong></p>
 
   [![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactnative.dev/)
@@ -31,7 +31,7 @@ Explore the detailed architecture and planning documents below, neatly organized
 
 ## ✨ Features
 
-NutriLens removes the friction from calorie counting by combining a modern, glassmorphic UI with cutting-edge AI.
+SnapBite removes the friction from calorie counting by combining a modern, glassmorphic UI with cutting-edge AI.
 
 | Feature | Description |
 | :--- | :--- |
@@ -126,7 +126,7 @@ eas build --platform all --profile preview
 ---
 
 ## 🎨 App UI & Design System
-NutriLens embraces a premium aesthetic utilizing:
+SnapBite embraces a premium aesthetic utilizing:
 - **Glassmorphism:** Built via `expo-blur` and translucent RGBA overlays for a sleek, modern look.
 - **Micro-animations:** Powered by `react-native-reanimated` to ensure 60FPS fluid transitions on modals and form entries.
 - **Custom Navigation:** A bespoke curved notch bottom tab bar crafted dynamically with `react-native-svg`.
