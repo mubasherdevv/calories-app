@@ -32,7 +32,7 @@ export function useNotifications() {
       setNotification(notification);
     });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
       console.log(response);
     });
 

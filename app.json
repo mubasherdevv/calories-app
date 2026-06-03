@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "MyApp",
-    "slug": "my-app",
+    "name": "SnapBite",
+    "slug": "snap-bite",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "myapp",
+    "scheme": "snapbite",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "androidStatusBar": {
@@ -19,13 +19,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourcompany.myapp",
+      "bundleIdentifier": "com.yourcompany.snapbite",
       "associatedDomains": [
         "applinks:REPLACE_WITH_YOUR_DOMAIN"
       ]
     },
     "android": {
-      "package": "com.yourcompany.myapp",
+      "package": "com.yourcompany.snapbite",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0d0d0d"
@@ -42,7 +42,7 @@
           "autoVerify": true,
           "data": [
             {
-              "scheme": "myapp"
+              "scheme": "snapbite"
             }
           ],
           "category": [

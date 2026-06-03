@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
-  View, Pressable, StyleSheet, Dimensions,
+  View, Pressable, StyleSheet, Dimensions, Image,
   ImageBackground, StatusBar, PanResponder, Animated as RNAnimated, Platform,
 } from 'react-native'
 import { BlurView } from 'expo-blur'
@@ -132,10 +132,12 @@ export default function LandingScreen() {
 
       {/* App logo top-left (enlarged per request) */}
       <View style={[s.logoRow, { marginTop: insets.top + 16 }]}>
-        <View style={s.logoBadge}>
-          <Ionicons name="leaf" size={20} color="#fff" />
-        </View>
-        <Text style={s.logoText}>FitBite</Text>
+        <Image
+          source={require('../assets/adaptive-icon.png')}
+          style={{ width: 40, height: 40, borderRadius: 20 }}
+          resizeMode="contain"
+        />
+        <Text style={s.logoText}>SnapBite</Text>
       </View>
 
       {/* Title */}

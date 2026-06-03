@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { View, StyleSheet, Platform, DeviceEventEmitter } from 'react-native'
 import { Stack, useNavigationContainerRef, usePathname } from 'expo-router'
+import Head from 'expo-router/head'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/queryClient'
 import * as Sentry from '@sentry/react-native'
@@ -255,6 +256,9 @@ function RootLayout() {
 
   return (
     <ErrorBoundary>
+      <Head>
+        <title>SnapBite</title>
+      </Head>
       <I18nextProvider i18n={i18n}>
         <MaybePostHogProvider>
           <QueryClientProvider client={queryClient}>
