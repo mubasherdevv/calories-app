@@ -24,19 +24,19 @@ const { width: SW, height: SH } = Dimensions.get('window')
 
 // Calorie badge data (floating pills on the landing screen)
 const BADGES = [
-  { label: 'AI Scan 📸', color: ACCENT,    x: SW * 0.52, y: SH * 0.38 },
-  { label: 'Track 🥗',   color: '#F59E0B', x: SW * 0.06, y: SH * 0.50 },
+  { label: 'AI Scan 📸', color: ACCENT, x: SW * 0.52, y: SH * 0.38 },
+  { label: 'Track 🥗', color: '#F59E0B', x: SW * 0.06, y: SH * 0.50 },
   { label: 'Analyze 🧠', color: '#60A5FA', x: SW * 0.48, y: SH * 0.62 },
 ]
 
 export default function LandingScreen() {
   const insets = useSafeAreaInsets()
 
-  const titleY   = useSharedValue(-30)
-  const titleOp  = useSharedValue(0)
-  const badgeOp  = useSharedValue(0)
-  const footerY  = useSharedValue(40)
-  const footerOp = useSharedValue(0)
+  const titleY = useSharedValue(0)
+  const titleOp = useSharedValue(1)
+  const badgeOp = useSharedValue(1)
+  const footerY = useSharedValue(0)
+  const footerOp = useSharedValue(1)
 
   // Floating badge animation values
   const b0Y = useSharedValue(0)
@@ -103,31 +103,11 @@ export default function LandingScreen() {
   }
 
   useEffect(() => {
-    titleY.value  = withSpring(0, { damping: 14, stiffness: 100 })
-    titleOp.value = withTiming(1, { duration: 600 })
-
-    badgeOp.value = withDelay(400, withTiming(1, { duration: 500 }))
-
-    footerY.value  = withDelay(500, withSpring(0, { damping: 14, stiffness: 100 }))
-    footerOp.value = withDelay(500, withTiming(1, { duration: 500 }))
-
-    // Floating loop animations
-    b0Y.value = withRepeat(withSequence(
-      withTiming(-10, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
-      withTiming(0,   { duration: 2800, easing: Easing.inOut(Easing.sin) }),
-    ), -1, true)
-    b1Y.value = withRepeat(withSequence(
-      withTiming(12, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
-      withTiming(0,  { duration: 3200, easing: Easing.inOut(Easing.sin) }),
-    ), -1, true)
-    b2Y.value = withRepeat(withSequence(
-      withTiming(-8, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
-      withTiming(0,  { duration: 2400, easing: Easing.inOut(Easing.sin) }),
-    ), -1, true)
+    // Initial entry animations and floating animations removed as requested
   }, [])
 
-  const titleStyle  = useAnimatedStyle(() => ({ transform: [{ translateY: titleY.value }], opacity: titleOp.value }))
-  const badgeStyle  = useAnimatedStyle(() => ({ opacity: badgeOp.value }))
+  const titleStyle = useAnimatedStyle(() => ({ transform: [{ translateY: titleY.value }], opacity: titleOp.value }))
+  const badgeStyle = useAnimatedStyle(() => ({ opacity: badgeOp.value }))
   const footerStyle = useAnimatedStyle(() => ({ transform: [{ translateY: footerY.value }], opacity: footerOp.value }))
   const b0Style = useAnimatedStyle(() => ({ transform: [{ translateY: b0Y.value }] }))
   const b1Style = useAnimatedStyle(() => ({ transform: [{ translateY: b1Y.value }] }))
@@ -141,7 +121,7 @@ export default function LandingScreen() {
 
       {/* Full-screen food background image with slight blur for high readability */}
       <ImageBackground
-        source={require('../assets/food-bg.png')}
+        source={require('../assets/food-bg.jpg')}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
         blurRadius={Platform.OS === 'ios' ? 4 : 3}

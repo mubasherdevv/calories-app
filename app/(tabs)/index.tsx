@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import Svg, { Circle } from 'react-native-svg'
 import { BlurView } from 'expo-blur'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 import { Text } from '@/components/ui/Text'
 import { Card } from '@/components/ui/Card'
@@ -83,6 +84,62 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [hasUnread, setHasUnread] = useState(true)
+  const [pastReminders, setPastReminders] = useState<{meal: string, timeStr: string, diffMins: number}[]>([])
+
+  React.useEffect(() => {
+    const checkReminders = () => {
+      AsyncStorage.getItem('smart_reminders').then(val => {
+        const enabled = val === 'true'
+        if (enabled) {
+          AsyncStorage.getItem('reminder_times').then(timesVal => {
+            if (timesVal) {
+              const times = JSON.parse(timesVal)
+              const now = new Date()
+              const past: {meal: string, timeStr: string, diffMins: number}[] = []
+
+              const checkMeal = (mealName: string, isoString?: string, defaultHour: number = 9) => {
+                const d = new Date()
+                if (isoString) {
+                  const saved = new Date(isoString)
+                  d.setHours(saved.getHours(), saved.getMinutes(), 0, 0)
+                } else {
+                  d.setHours(defaultHour, 0, 0, 0)
+                }
+                
+                const diffMs = now.getTime() - d.getTime()
+                const diffMins = Math.floor(diffMs / 60000)
+                
+                // Show if it passed today (within last 12 hours)
+                if (diffMins >= 0 && diffMins < 12 * 60) {
+                  past.push({ meal: mealName, timeStr: d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), diffMins })
+                }
+              }
+
+              checkMeal('Breakfast', times?.breakfast, 9)
+              checkMeal('Lunch', times?.lunch, 13)
+              checkMeal('Dinner', times?.dinner, 19)
+              
+              past.sort((a, b) => a.diffMins - b.diffMins) // most recent first
+              setPastReminders(prev => {
+                if (past.length > prev.length) {
+                  setHasUnread(true)
+                }
+                return past
+              })
+            }
+          })
+        } else {
+          setPastReminders([])
+        }
+      })
+    }
+
+    checkReminders() // Check immediately
+    const interval = setInterval(checkReminders, 30000) // Check every 30 seconds
+    return () => clearInterval(interval)
+  }, [])
 
   // ─── Active Date State ───────────────────────────────────────────────────────
   const [activeDate, setActiveDate] = useState<string>(() => {
@@ -224,15 +281,61 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Right actions: Notification bell */}
           <View style={s.headerRightActions}>
-            <Pressable style={s.notificationBtn} hitSlop={8}>
-              <Ionicons name="notifications-outline" size={18} color={TEXT_PRIMARY} />
-              <View style={s.notificationBadge} />
+            <Pressable 
+              style={[s.notificationBtn, hasUnread && s.notificationBtnGlow]} 
+              hitSlop={8}
+              onPress={() => {
+                setShowNotifications(!showNotifications)
+                if (hasUnread) setHasUnread(false)
+              }}
+            >
+              <Ionicons 
+                name={hasUnread ? "notifications" : "notifications-outline"} 
+                size={22} 
+                color={hasUnread ? '#22C55E' : TEXT_PRIMARY} 
+              />
+              {hasUnread && <View style={s.notificationBadge} />}
             </Pressable>
           </View>
         </View>
       </View>
+
+      {/* ─── Notifications Dropdown ─── */}
+      {showNotifications && (
+        <Animated.View entering={FadeIn.duration(200)} style={[s.notificationsDropdown, { top: insets.top + 70 }]}>
+          <View style={s.notificationsDropdownHeader}>
+            <Text style={{ fontWeight: '800', fontSize: 14 }}>Notifications</Text>
+            <Pressable onPress={() => setShowNotifications(false)}>
+              <Ionicons name="close" size={18} color="#666" />
+            </Pressable>
+          </View>
+          
+          {pastReminders.map((rem) => (
+            <View key={rem.meal} style={s.notificationItem}>
+              <View style={[s.notifIconWrap, { backgroundColor: 'rgba(34, 197, 94, 0.12)' }]}>
+                <Ionicons name="restaurant" size={16} color="#22C55E" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.notificationText}>It's time for {rem.meal}! Don't forget to log it.</Text>
+                <Text style={s.notificationTime}>
+                  {rem.diffMins === 0 ? 'Just now' : rem.diffMins < 60 ? `${rem.diffMins}m ago` : `${Math.floor(rem.diffMins/60)}h ${rem.diffMins%60}m ago`}
+                </Text>
+              </View>
+            </View>
+          ))}
+
+          <View style={s.notificationItem}>
+            <View style={[s.notifIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+              <Ionicons name="flame" size={16} color="#F59E0B" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.notificationText}>You hit a 5 day streak! 🔥</Text>
+              <Text style={s.notificationTime}>2 hours ago</Text>
+            </View>
+          </View>
+        </Animated.View>
+      )}
 
       <ScrollView
         style={{ flex: 1 }}
@@ -666,9 +769,9 @@ const s = StyleSheet.create({
     flexShrink: 0,
   },
   notificationBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -679,15 +782,22 @@ const s = StyleSheet.create({
     elevation: 2,
     position: 'relative',
   },
+  notificationBtnGlow: {
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
+  },
   notificationBadge: {
     position: 'absolute',
-    top: 9,
-    right: 9,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    top: 10,
+    right: 10,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     backgroundColor: '#22C55E',
-    borderWidth: 1.2,
+    borderWidth: 1.5,
     borderColor: '#FFF',
   },
 
@@ -1144,6 +1254,53 @@ const s = StyleSheet.create({
     color: '#FFF',
     fontSize: 14.5,
     fontWeight: '800',
+  },
+  // Notifications Dropdown
+  notificationsDropdown: {
+    position: 'absolute',
+    right: 20,
+    width: SW * 0.75,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: 'rgba(0,0,0,0.1)',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 10,
+    zIndex: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  notificationsDropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  notifIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+  },
+  notificationTime: {
+    fontSize: 11,
+    color: TEXT_SECONDARY,
+    fontWeight: '500',
+    marginTop: 2,
   },
 })
 

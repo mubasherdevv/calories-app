@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router'
-import { House, TrendingUp, Bell, CircleUser } from 'lucide-react-native'
+import { House, TrendingUp, History, CircleUser } from 'lucide-react-native'
 import TabBar, { TAB_BAR_HEIGHT } from '@/components/TabBar'
 import { BG } from '@/lib/theme'
+import { useNotifications } from '@/hooks/useNotifications'
 
 export default function TabsLayout() {
+  useNotifications()
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
@@ -34,11 +36,11 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="activity"
+        name="history"
         options={{
-          tabBarLabel: 'Activity',
+          tabBarLabel: 'History',
           tabBarIcon: ({ color }) => (
-            <Bell size={22} color={color} stroke={color} strokeWidth={2.0} />
+            <History size={22} color={color} stroke={color} strokeWidth={2.0} />
           ),
         }}
       />

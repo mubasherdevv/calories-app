@@ -377,6 +377,49 @@ export function useWeeklyLogs() {
   })
 }
 
+/**
+ * Fetches all food logs (used for All Time history)
+ */
+export function useAllLogs() {
+  return useQuery<FoodLog[]>({
+    queryKey: ['allLogs'],
+    queryFn: async () => {
+      if (isSupabaseEnabled) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data, error } = await supabase
+              .from('food_logs')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('logged_at', { ascending: false })
+
+            if (!error && data) {
+              return data.map((row: any) => ({
+                id: row.id,
+                name: row.name,
+                mealType: row.meal_type,
+                calories: row.calories,
+                protein: Number(row.protein),
+                carbs: Number(row.carbs),
+                fat: Number(row.fat),
+                imageUri: row.image_uri ?? undefined,
+                loggedAt: row.logged_at,
+              }))
+            }
+          }
+        } catch (e) {
+          console.warn('[Supabase] Failed loading all stats, fallback to local', e)
+        }
+      }
+
+      const allLogs = await getLocalLogs()
+      return allLogs.sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
+    },
+    placeholderData: INITIAL_LOGS,
+  })
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 /**
@@ -487,6 +530,7 @@ export function useAddFoodLog() {
       queryClient.invalidateQueries({ queryKey: ['foodLogs', dateStr] })
       queryClient.invalidateQueries({ queryKey: ['weeklyLogs'] })
       queryClient.invalidateQueries({ queryKey: ['profileGoals'] })
+      queryClient.invalidateQueries({ queryKey: ['allLogs'] })
     },
   })
 }
@@ -520,6 +564,7 @@ export function useDeleteFoodLog() {
     onSuccess: (_: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ['foodLogs', variables.dateString] })
       queryClient.invalidateQueries({ queryKey: ['weeklyLogs'] })
+      queryClient.invalidateQueries({ queryKey: ['allLogs'] })
     },
   })
 }

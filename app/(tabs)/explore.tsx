@@ -199,6 +199,32 @@ export default function AnalyticsScreen() {
     return best === 'None' ? 'Tuesday' : best
   }, [last7DaysData, calorieGoal])
 
+  // Dynamic AI Insight Text
+  const aiInsightText = useMemo(() => {
+    let text = ''
+    if (weeklyStats.averageProtein === 0) {
+      text = "Start logging your meals so I can give you personalized AI insights on your nutrition!"
+    } else {
+      const protDiff = proteinGoal - weeklyStats.averageProtein
+      const calDiff = Math.abs(calorieGoal - weeklyStats.averageCalories)
+      
+      if (weeklyStats.successDays >= 4) {
+        text = `You're on fire! You hit your calorie goal ${weeklyStats.successDays} times this week. `
+      } else {
+        text = `You averaged ${calDiff} kcal ${weeklyStats.averageCalories < calorieGoal ? 'below' : 'above'} your daily goal. `
+      }
+      
+      if (protDiff > 15) {
+        text += `Your protein is a bit low (${weeklyStats.averageProtein}g). Try adding more lean meats or Greek yogurt.`
+      } else if (protDiff < -10) {
+        text += `You're crushing your protein goal! Great job for muscle recovery.`
+      } else {
+        text += `Your protein intake is perfectly balanced with your weekly target!`
+      }
+    }
+    return text
+  }, [weeklyStats, proteinGoal, calorieGoal])
+
   const onRefresh = async () => {
     setRefreshing(true)
     await queryClient.invalidateQueries({ queryKey: ['weeklyLogs'] })
@@ -225,269 +251,269 @@ export default function AnalyticsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
         showsVerticalScrollIndicator={false}
       >
-      {/* ─── Elegant Progress Header ─── */}
-      <View style={s.header}>
-        <View style={s.headerRow}>
-          <View>
-            <Text style={s.title}>Progress</Text>
-            <Text style={s.subtitle}>Analyze weekly calorie & macro trends</Text>
-          </View>
-
-          {/* Mini fire streak card */}
-          <View style={s.streakMiniCard}>
-            <Text style={s.streakFire}>🔥</Text>
-            <Text style={s.streakVal}>{streakCount} days</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* ─── Compact Selector Chips ─── */}
-      <Animated.View entering={FadeInDown.duration(400)}>
-        <View style={s.selectorRow}>
-          <View style={s.selectorChipActive}>
-            <Ionicons name="calendar-outline" size={13} color="#FFF" style={{ marginRight: 5 }} />
-            <Text style={s.selectorChipTextActive}>This Week</Text>
-          </View>
-          <View style={s.selectorChipInactive}>
-            <Text style={s.selectorChipTextInactive}>Last 7 Days</Text>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* ─── Weekly Goal Completion Hero Card ─── */}
-      <Animated.View entering={FadeInDown.delay(50).duration(450)}>
-        <Card style={s.weeklyGoalCard}>
-          <View style={s.weeklyGoalContent}>
-            <View style={s.weeklyGoalLeft}>
-              <Text style={s.weeklyGoalTag}>✨ WEEKLY PERFORMANCE</Text>
-              <Text style={s.weeklyGoalValue}>85%</Text>
-              <Text style={s.weeklyGoalSub}>Goal Achieved</Text>
-              <Text style={s.weeklyGoalDesc}>
-                Excellent progress! You hit your calorie targets on 5 out of the last 6 days.
-              </Text>
+        {/* ─── Elegant Progress Header ─── */}
+        <View style={s.header}>
+          <View style={s.headerRow}>
+            <View>
+              <Text style={s.title}>Progress</Text>
+              <Text style={s.subtitle}>Analyze weekly calorie & macro trends</Text>
             </View>
-            <View style={s.weeklyGoalRight}>
-              <Svg width={96} height={96}>
-                <Circle
-                  cx={48}
-                  cy={48}
-                  r={40}
-                  stroke="rgba(34, 197, 94, 0.05)"
-                  strokeWidth={7}
-                  fill="transparent"
-                />
-                <Circle
-                  cx={48}
-                  cy={48}
-                  r={40}
-                  stroke="#22C55E"
-                  strokeWidth={7}
-                  fill="transparent"
-                  strokeDasharray={2 * Math.PI * 40}
-                  strokeDashoffset={2 * Math.PI * 40 * (1 - 0.85)}
-                  strokeLinecap="round"
-                  transform="rotate(-90 48 48)"
-                />
-              </Svg>
-              <View style={s.weeklyGoalInnerRing}>
-                <View style={s.trophyContainer}>
-                  <Ionicons name="trophy" size={20} color="#EAB308" />
-                  <View style={s.sparkleBadge}>
-                    <Ionicons name="sparkles" size={8} color="#FF9800" />
+
+            {/* Mini fire streak card */}
+            <View style={s.streakMiniCard}>
+              <Text style={s.streakFire}>🔥</Text>
+              <Text style={s.streakVal}>{streakCount} days</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ─── Compact Selector Chips ─── */}
+        <Animated.View entering={FadeInDown.duration(400)}>
+          <View style={s.sectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="sparkles" size={16} color="#10B981" />
+              <Text style={s.sectionTitle}>AI Weekly Insights</Text>
+            </View>
+            <View style={s.selectorChipInactive}>
+              <Text style={s.selectorChipTextInactive}>Last 7 Days</Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ─── Weekly Goal Completion Hero Card ─── */}
+        <Animated.View entering={FadeInDown.delay(50).duration(450)}>
+          <Card style={s.weeklyGoalCard}>
+            <View style={s.weeklyGoalContent}>
+              <View style={s.weeklyGoalLeft}>
+                <Text style={s.weeklyGoalTag}>✨ WEEKLY PERFORMANCE</Text>
+                <Text style={s.weeklyGoalValue}>85%</Text>
+                <Text style={s.weeklyGoalSub}>Goal Achieved</Text>
+                <Text style={s.weeklyGoalDesc}>
+                  Excellent progress! You hit your calorie targets on 5 out of the last 6 days.
+                </Text>
+              </View>
+              <View style={s.weeklyGoalRight}>
+                <Svg width={96} height={96}>
+                  <Circle
+                    cx={48}
+                    cy={48}
+                    r={40}
+                    stroke="rgba(34, 197, 94, 0.05)"
+                    strokeWidth={7}
+                    fill="transparent"
+                  />
+                  <Circle
+                    cx={48}
+                    cy={48}
+                    r={40}
+                    stroke="#22C55E"
+                    strokeWidth={7}
+                    fill="transparent"
+                    strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - 0.85)}
+                    strokeLinecap="round"
+                    transform="rotate(-90 48 48)"
+                  />
+                </Svg>
+                <View style={s.weeklyGoalInnerRing}>
+                  <View style={s.trophyContainer}>
+                    <Ionicons name="trophy" size={20} color="#EAB308" />
+                    <View style={s.sparkleBadge}>
+                      <Ionicons name="sparkles" size={8} color="#FF9800" />
+                    </View>
                   </View>
                 </View>
               </View>
             </View>
-          </View>
-        </Card>
-      </Animated.View>
+          </Card>
+        </Animated.View>
 
-      {/* ─── Weekly Calorie Intake Bar Chart ─── */}
-      <Animated.View entering={FadeInDown.delay(100).duration(450)}>
-        <Card style={s.chartCard}>
-          <View style={s.chartHeader}>
-            <Text style={s.chartTitle}>Calorie Intake vs Goal</Text>
-            <Text style={s.chartSub}>Goal: {calorieGoal} kcal</Text>
-          </View>
+        {/* ─── Weekly Calorie Intake Bar Chart ─── */}
+        <Animated.View entering={FadeInDown.delay(100).duration(450)}>
+          <Card style={s.chartCard}>
+            <View style={s.chartHeader}>
+              <Text style={s.chartTitle}>Calorie Intake vs Goal</Text>
+              <Text style={s.chartSub}>Goal: {calorieGoal} kcal</Text>
+            </View>
 
-          <View style={s.chartContainer}>
-            <Svg width={CHART_W} height={CHART_H}>
-              {/* Horizontal Goal Target Line */}
-              {(() => {
-                const { maxVal, padding, graphH } = chartMetrics
-                const yPos = padding + graphH - (calorieGoal / maxVal) * graphH
-                return (
-                  <G>
-                    <Line
-                      x1={0}
-                      y1={yPos}
-                      x2={CHART_W}
-                      y2={yPos}
-                      stroke={ACCENT}
-                      strokeWidth={1.5}
-                      strokeDasharray="4,4"
-                      opacity={0.65}
-                    />
-                  </G>
-                )
-              })()}
+            <View style={s.chartContainer}>
+              <Svg width={CHART_W} height={CHART_H}>
+                {/* Horizontal Goal Target Line */}
+                {(() => {
+                  const { maxVal, padding, graphH } = chartMetrics
+                  const yPos = padding + graphH - (calorieGoal / maxVal) * graphH
+                  return (
+                    <G>
+                      <Line
+                        x1={0}
+                        y1={yPos}
+                        x2={CHART_W}
+                        y2={yPos}
+                        stroke={ACCENT}
+                        strokeWidth={1.5}
+                        strokeDasharray="4,4"
+                        opacity={0.65}
+                      />
+                    </G>
+                  )
+                })()}
 
-              {/* Weekly Bars */}
-              {last7DaysData.map((day, idx) => {
-                const { maxVal, padding, graphH, barW, spacing } = chartMetrics
-                const barHeight = (day.calories / maxVal) * graphH
-                const xPos = spacing + idx * (barW + spacing)
-                const yPos = padding + graphH - barHeight
+                {/* Weekly Bars */}
+                {last7DaysData.map((day, idx) => {
+                  const { maxVal, padding, graphH, barW, spacing } = chartMetrics
+                  const barHeight = (day.calories / maxVal) * graphH
+                  const xPos = spacing + idx * (barW + spacing)
+                  const yPos = padding + graphH - barHeight
 
-                const todayStr = new Date().toISOString().split('T')[0]
-                const isToday = day.dateStr === todayStr
-                const exceedsGoal = day.calories > calorieGoal
+                  const todayStr = new Date().toISOString().split('T')[0]
+                  const isToday = day.dateStr === todayStr
+                  const exceedsGoal = day.calories > calorieGoal
 
-                return (
-                  <G key={day.dateStr}>
-                    {/* Background faint guide pillar */}
-                    <Rect
-                      x={xPos}
-                      y={padding}
-                      width={barW}
-                      height={graphH}
-                      rx={5}
-                      fill="rgba(0,0,0,0.03)"
-                    />
-                    {/* Active Bar */}
-                    {day.calories > 0 && (
+                  return (
+                    <G key={day.dateStr}>
+                      {/* Background faint guide pillar */}
                       <Rect
                         x={xPos}
-                        y={yPos}
+                        y={padding}
                         width={barW}
-                        height={barHeight}
+                        height={graphH}
                         rx={5}
-                        fill={isToday ? '#2E7D32' : exceedsGoal ? '#EF4444' : ACCENT}
+                        fill="rgba(0,0,0,0.03)"
                       />
-                    )}
-                    {/* Date label at bottom */}
-                    <SvgText
-                      x={xPos + barW / 2}
-                      y={CHART_H - 6}
-                      fill={isToday ? ACCENT : exceedsGoal ? '#EF4444' : TEXT_SECONDARY}
-                      fontSize={10}
-                      fontWeight={isToday ? '800' : '650'}
-                      textAnchor="middle"
-                    >
-                      {day.label}
-                    </SvgText>
-
-                    {/* Numeric kcal above bar */}
-                    {day.calories > 0 && (
+                      {/* Active Bar */}
+                      {day.calories > 0 && (
+                        <Rect
+                          x={xPos}
+                          y={yPos}
+                          width={barW}
+                          height={barHeight}
+                          rx={5}
+                          fill={isToday ? '#2E7D32' : exceedsGoal ? '#EF4444' : ACCENT}
+                        />
+                      )}
+                      {/* Date label at bottom */}
                       <SvgText
                         x={xPos + barW / 2}
-                        y={yPos - 6}
-                        fill={TEXT_PRIMARY}
-                        fontSize={9}
-                        fontWeight="750"
+                        y={CHART_H - 6}
+                        fill={isToday ? ACCENT : exceedsGoal ? '#EF4444' : TEXT_SECONDARY}
+                        fontSize={10}
+                        fontWeight={isToday ? '800' : '650'}
                         textAnchor="middle"
                       >
-                        {Math.round(day.calories)}
+                        {day.label}
                       </SvgText>
-                    )}
-                  </G>
-                )
-              })}
-            </Svg>
+
+                      {/* Numeric kcal above bar */}
+                      {day.calories > 0 && (
+                        <SvgText
+                          x={xPos + barW / 2}
+                          y={yPos - 6}
+                          fill={TEXT_PRIMARY}
+                          fontSize={9}
+                          fontWeight="750"
+                          textAnchor="middle"
+                        >
+                          {Math.round(day.calories)}
+                        </SvgText>
+                      )}
+                    </G>
+                  )
+                })}
+              </Svg>
+            </View>
+
+            {/* Stats Indicators Row */}
+            <View style={s.chartIndicatorsRow}>
+              {/* Weekly Avg */}
+              <View style={s.chartIndicatorItem}>
+                <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(34, 197, 94, 0.08)' }]}>
+                  <Ionicons name="bar-chart" size={16} color="#22C55E" />
+                </View>
+                <View style={s.indicatorTextWrap}>
+                  <Text style={s.indicatorLabel}>Weekly Avg</Text>
+                  <Text style={s.indicatorValue}>
+                    {weeklyStats.averageCalories} <Text style={s.indicatorUnit}>kcal</Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* Goal Achieved */}
+              <View style={s.chartIndicatorItem}>
+                <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
+                  <Ionicons name="disc" size={16} color="#3B82F6" />
+                </View>
+                <View style={s.indicatorTextWrap}>
+                  <Text style={s.indicatorLabel}>Goal Achieved</Text>
+                  <Text style={s.indicatorValue}>
+                    {weeklyStats.successDays}<Text style={s.indicatorUnit}>/7 Days</Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* Best Day */}
+              <View style={s.chartIndicatorItem}>
+                <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}>
+                  <Ionicons name="star" size={16} color="#F59E0B" />
+                </View>
+                <View style={s.indicatorTextWrap}>
+                  <Text style={s.indicatorLabel}>Best Day</Text>
+                  <Text style={s.indicatorValue}>
+                    {bestDayCal} <Text style={s.indicatorUnit}>kcal</Text>
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </Card>
+        </Animated.View>
+
+        {/* ─── Weekly Macro Averages Circular Rings ─── */}
+        <Animated.View entering={FadeInDown.delay(200).duration(450)}>
+          <Card style={s.macrosCard}>
+            <Text style={s.chartTitle}>Weekly Macro Averages</Text>
+            <Text style={s.macroSegmentSub}>Your daily average macronutrient intakes mapped against targets.</Text>
+
+            <View style={s.macroCirclesRow}>
+              <MacroProgressCircle
+                label="Protein"
+                value={weeklyStats.averageProtein}
+                goal={proteinGoal}
+                color={PROTEIN_COLOR}
+              />
+              <MacroProgressCircle
+                label="Carbs"
+                value={weeklyStats.averageCarbs}
+                goal={carbsGoal}
+                color={CARBS_COLOR}
+              />
+              <MacroProgressCircle
+                label="Fat"
+                value={weeklyStats.averageFat}
+                goal={fatGoal}
+                color={FAT_COLOR}
+              />
+            </View>
+          </Card>
+        </Animated.View>
+
+        {/* ─── AI Nutrition Coach Glass Card ─── */}
+        <Animated.View entering={FadeInDown.delay(350).duration(400)}>
+          <Text style={s.sectionTitle}>AI Coaching</Text>
+          <View style={s.aiInsightCard}>
+            <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={s.aiInsightHeader}>
+              <View style={s.aiCoachAvatarWrap}>
+                <Ionicons name="sparkles" size={15} color="#FFF" />
+              </View>
+              <View>
+                <Text style={s.aiInsightTitle}>AI Nutrition Coach</Text>
+                <Text style={s.aiInsightTime}>Updated just now</Text>
+              </View>
+            </View>
+            <Text style={s.aiInsightText}>
+              {aiInsightText}
+            </Text>
           </View>
-
-          {/* Stats Indicators Row */}
-          <View style={s.chartIndicatorsRow}>
-            {/* Weekly Avg */}
-            <View style={s.chartIndicatorItem}>
-              <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(34, 197, 94, 0.08)' }]}>
-                <Ionicons name="bar-chart" size={16} color="#22C55E" />
-              </View>
-              <View style={s.indicatorTextWrap}>
-                <Text style={s.indicatorLabel}>Weekly Avg</Text>
-                <Text style={s.indicatorValue}>
-                  {weeklyStats.averageCalories} <Text style={s.indicatorUnit}>kcal</Text>
-                </Text>
-              </View>
-            </View>
-
-            {/* Goal Achieved */}
-            <View style={s.chartIndicatorItem}>
-              <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
-                <Ionicons name="disc" size={16} color="#3B82F6" />
-              </View>
-              <View style={s.indicatorTextWrap}>
-                <Text style={s.indicatorLabel}>Goal Achieved</Text>
-                <Text style={s.indicatorValue}>
-                  {weeklyStats.successDays}<Text style={s.indicatorUnit}>/7 Days</Text>
-                </Text>
-              </View>
-            </View>
-
-            {/* Best Day */}
-            <View style={s.chartIndicatorItem}>
-              <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}>
-                <Ionicons name="star" size={16} color="#F59E0B" />
-              </View>
-              <View style={s.indicatorTextWrap}>
-                <Text style={s.indicatorLabel}>Best Day</Text>
-                <Text style={s.indicatorValue}>
-                  {bestDayCal} <Text style={s.indicatorUnit}>kcal</Text>
-                </Text>
-              </View>
-            </View>
-          </View>
-        </Card>
-      </Animated.View>
-
-      {/* ─── Weekly Macro Averages Circular Rings ─── */}
-      <Animated.View entering={FadeInDown.delay(200).duration(450)}>
-        <Card style={s.macrosCard}>
-          <Text style={s.chartTitle}>Weekly Macro Averages</Text>
-          <Text style={s.macroSegmentSub}>Your daily average macronutrient intakes mapped against targets.</Text>
-
-          <View style={s.macroCirclesRow}>
-            <MacroProgressCircle
-              label="Protein"
-              value={weeklyStats.averageProtein}
-              goal={proteinGoal}
-              color={PROTEIN_COLOR}
-            />
-            <MacroProgressCircle
-              label="Carbs"
-              value={weeklyStats.averageCarbs}
-              goal={carbsGoal}
-              color={CARBS_COLOR}
-            />
-            <MacroProgressCircle
-              label="Fat"
-              value={weeklyStats.averageFat}
-              goal={fatGoal}
-              color={FAT_COLOR}
-            />
-          </View>
-        </Card>
-      </Animated.View>
-
-      {/* ─── AI Nutrition Coach Glass Card ─── */}
-      <Animated.View entering={FadeInDown.delay(350).duration(400)}>
-        <Text style={s.sectionTitle}>AI Coaching</Text>
-        <View style={s.aiInsightCard}>
-          <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-          <View style={s.aiInsightHeader}>
-            <View style={s.aiCoachAvatarWrap}>
-              <Ionicons name="sparkles" size={15} color="#FFF" />
-            </View>
-            <View>
-              <Text style={s.aiInsightTitle}>AI Nutrition Coach</Text>
-              <Text style={s.aiInsightTime}>Updated just now</Text>
-            </View>
-          </View>
-          <Text style={s.aiInsightText}>
-            You consistently meet your protein goal. Try increasing vegetables for better micronutrient balance.
-          </Text>
-        </View>
-      </Animated.View>
+        </Animated.View>
       </ScrollView>
     </View>
   )
@@ -817,6 +843,13 @@ const s = StyleSheet.create({
   },
 
   // Insights
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '800',

@@ -12,6 +12,8 @@ import {
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { BlurView } from 'expo-blur'
+import { LinearGradient } from 'expo-linear-gradient'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -50,14 +52,21 @@ import { useGoals } from '@/hooks/useGoals'
 const { width: SW, height: SH } = Dimensions.get('window')
 const PHOTO_SIZE = SW - 40
 
+const defaultInsights = [
+  { icon: 'checkmark-circle', color: '#10B981', text: 'High in protein — great for muscle recovery.' },
+  { icon: 'leaf', color: '#10B981', text: 'Good balance of carbs and healthy fats.' },
+  { icon: 'warning', color: '#F59E0B', text: 'Low in fiber — consider adding more veggies.' },
+  { icon: 'bulb-outline', color: '#3B82F6', text: 'Try drinking more water with this meal.' }
+]
+
 // Mock vision AI food taxonomy
 let PRESET_FOODS: any[] = [
-  { name: 'Avocado Quinoa Bowl', calories: 420, protein: 12, carbs: 48, fat: 22 },
-  { name: 'Pan-Seared Ribeye & Broccoli', calories: 740, protein: 58, carbs: 8, fat: 54 },
-  { name: 'Spaghetti Carbonara', calories: 680, protein: 24, carbs: 82, fat: 28 },
-  { name: 'Grilled Chicken & Sweet Potato', calories: 510, protein: 44, carbs: 38, fat: 12 },
-  { name: 'Blueberry Matcha Smoothie', calories: 240, protein: 15, carbs: 32, fat: 4 },
-  { name: 'Greek Salad with Feta', calories: 310, protein: 8, carbs: 14, fat: 26 },
+  { name: 'Avocado Quinoa Bowl', calories: 420, protein: 12, carbs: 48, fat: 22, insights: defaultInsights },
+  { name: 'Pan-Seared Ribeye & Broccoli', calories: 740, protein: 58, carbs: 8, fat: 54, insights: defaultInsights },
+  { name: 'Spaghetti Carbonara', calories: 680, protein: 24, carbs: 82, fat: 28, insights: defaultInsights },
+  { name: 'Grilled Chicken & Sweet Potato', calories: 510, protein: 44, carbs: 38, fat: 12, insights: defaultInsights },
+  { name: 'Blueberry Matcha Smoothie', calories: 240, protein: 15, carbs: 32, fat: 4, insights: defaultInsights },
+  { name: 'Greek Salad with Feta', calories: 310, protein: 8, carbs: 14, fat: 26, insights: defaultInsights },
 ]
 
 export default function ScanScreen() {
@@ -149,7 +158,7 @@ export default function ScanScreen() {
     if (apiKey && base64Data) {
       try {
         let cleanText = ''
-        const prompt = `You are an elite nutritionist AI. The user is a ${statsData?.age || 25}yo ${statsData?.gender || 'male'}, ${statsData?.weight || 75}kg, ${statsData?.height || 175}cm, aiming for ${statsData?.goal || 'weight_loss'} with a ${goalsData?.calories || 2000} kcal daily limit, ${goalsData?.protein || 130}g protein, ${goalsData?.carbs || 220}g carbs, ${goalsData?.fats || 65}g fats. Analyze this food image. Return a JSON object with EXACTLY these keys: 'name' (string, e.g. 'Avocado Toast'), 'calories' (integer, e.g. 350), 'protein' (integer, e.g. 12), 'carbs' (integer, e.g. 24), 'fat' (integer, e.g. 22), 'match_percentage' (integer, 0-100 indicating how well this fits their goals), 'match_label' (string, e.g. 'Best Match', 'Balanced Choice', 'Avoid'), 'coach_feedback' (string, 1-2 short sentences of personalized advice), 'healthier_alternatives' (array of strings, e.g. ["Turkey Burger", "Salad"]). Return ONLY the raw JSON block without markdown formatting or backticks.`
+        const prompt = `You are an elite nutritionist AI. The user is a ${statsData?.age || 25}yo ${statsData?.gender || 'male'}, ${statsData?.weight || 75}kg, ${statsData?.height || 175}cm, aiming for ${statsData?.goal || 'weight_loss'} with a ${goalsData?.calories || 2000} kcal daily limit, ${goalsData?.protein || 130}g protein, ${goalsData?.carbs || 220}g carbs, ${goalsData?.fats || 65}g fats. Analyze this food image. Return a JSON object with EXACTLY these keys: 'name' (string, e.g. 'Avocado Toast'), 'calories' (integer), 'protein' (integer), 'carbs' (integer), 'fat' (integer), 'match_percentage' (integer, 0-100), 'match_label' (string), 'healthier_alternatives' (array of strings), 'insights' (array of exactly 4 objects, each containing 'icon' (choose from 'checkmark-circle', 'leaf', 'warning', 'bulb-outline'), 'color' (hex color code), and 'text' (1 short personalized sentence)). Return ONLY the raw JSON block without markdown formatting or backticks.`
 
         if (config.provider === 'openai' || config.provider === 'custom') {
           const baseUrl = config.baseUrl || 'https://api.openai.com/v1'
@@ -214,7 +223,7 @@ export default function ScanScreen() {
             fat: Number(parsed.fat ?? 0),
             matchPercentage: Number(parsed.match_percentage ?? 85),
             matchLabel: parsed.match_label ?? 'Good Match',
-            coachFeedback: parsed.coach_feedback ?? 'Great choice!',
+            insights: parsed.insights ?? defaultInsights,
             healthierAlternatives: parsed.healthier_alternatives ?? [],
           }
 
@@ -242,6 +251,13 @@ export default function ScanScreen() {
   const protein = Math.round(currentPreset.protein * portion)
   const carbs = Math.round(currentPreset.carbs * portion)
   const fat = Math.round(currentPreset.fat * portion)
+
+  const handleRescan = () => {
+    setImageUri(null)
+    setStatus('idle')
+    setSelectedFoodIndex(0)
+    setCustomDescription('')
+  }
 
   const handleLogMeal = () => {
     let mealName = currentPreset.name
@@ -300,6 +316,15 @@ export default function ScanScreen() {
 
   return (
     <View style={s.root}>
+      {/* ─── Premium Green Glass Background ─── */}
+      <LinearGradient
+        colors={['#F8FFF9', '#F3FFF6', '#ECFDF3']}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={{ position: 'absolute', top: -50, left: -50, width: 300, height: 300, borderRadius: 150, backgroundColor: 'rgba(34, 197, 94, 0.15)' }} />
+      <View style={{ position: 'absolute', bottom: 100, right: -50, width: 250, height: 250, borderRadius: 125, backgroundColor: 'rgba(16, 185, 129, 0.12)' }} />
+      <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFillObject} />
+
       {/* ─── Premium Light Header ─── */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <View style={s.headerRow}>
@@ -336,7 +361,7 @@ export default function ScanScreen() {
               <View style={s.gridRow} />
               <View style={s.gridCol} />
 
-              <Ionicons name="scan-outline" size={48} color={ACCENT} style={s.centerScannerIcon} />
+              <Ionicons name="scan-outline" size={40} color={ACCENT} style={s.centerScannerIcon} />
             </View>
 
             {/* Premium Action Control Panel */}
@@ -351,7 +376,7 @@ export default function ScanScreen() {
                   onPress={() => pickImage(true)}
                   style={({ pressed }) => [s.primaryActionBtn, pressed && { opacity: 0.85 }]}
                 >
-                  <Ionicons name="camera" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                  <Ionicons name="camera" size={18} color="#FFF" style={{ marginRight: 8 }} />
                   <Text style={s.actionBtnText}>Take Photo</Text>
                 </Pressable>
 
@@ -359,38 +384,9 @@ export default function ScanScreen() {
                   onPress={() => pickImage(false)}
                   style={({ pressed }) => [s.secondaryActionBtn, pressed && s.secondaryPressed]}
                 >
-                  <Ionicons name="image-outline" size={20} color={ACCENT} style={{ marginRight: 8 }} />
+                  <Ionicons name="image-outline" size={18} color={ACCENT} style={{ marginRight: 8 }} />
                   <Text style={[s.actionBtnText, { color: ACCENT }]}>Upload from Gallery</Text>
                 </Pressable>
-              </View>
-
-              {/* Manual search fallback */}
-              <View style={s.fallbackBlock}>
-                <View style={s.dividerRow}>
-                  <View style={s.dividerLine} />
-                  <Text style={s.dividerText}>or describe manually</Text>
-                  <View style={s.dividerLine} />
-                </View>
-
-                <View style={s.fallbackInputRow}>
-                  <TextInputField
-                    value={customDescription}
-                    onChangeText={setCustomDescription}
-                    placeholder="e.g. 2 fried eggs with avocado"
-                    style={s.descInput}
-                  />
-                  <Pressable
-                    onPress={handleDescribeSearch}
-                    disabled={!customDescription.trim()}
-                    style={({ pressed }) => [
-                      s.descSearchBtn,
-                      !customDescription.trim() && { opacity: 0.4 },
-                      pressed && { opacity: 0.8 },
-                    ]}
-                  >
-                    <Ionicons name="arrow-forward" size={18} color="#FFF" />
-                  </Pressable>
-                </View>
               </View>
             </Card>
           </Animated.View>
@@ -498,10 +494,11 @@ export default function ScanScreen() {
             <View style={s.categoryCard}>
               {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => {
                 const isActive = mealType === type;
-                let iconName: any = 'sunny-outline';
-                if (type === 'lunch') iconName = 'fast-food-outline';
-                if (type === 'dinner') iconName = 'moon-outline';
-                if (type === 'snack') iconName = 'nutrition-outline';
+                let iconName: any = 'sunny';
+                let iconColor = '#F59E0B'; // Orange
+                if (type === 'lunch') { iconName = 'leaf'; iconColor = '#10B981'; } // Green
+                if (type === 'dinner') { iconName = 'moon'; iconColor = '#8B5CF6'; } // Purple
+                if (type === 'snack') { iconName = 'nutrition'; iconColor = '#F43F5E'; } // Red
 
                 return (
                   <Pressable
@@ -510,9 +507,9 @@ export default function ScanScreen() {
                     style={[s.categoryBtn, isActive && s.categoryBtnActive]}
                   >
                     <Ionicons
-                      name={iconName}
-                      size={15}
-                      color={isActive ? ACCENT : TEXT_SECONDARY}
+                      name={isActive ? iconName : `${iconName}-outline`}
+                      size={16}
+                      color={isActive ? ACCENT : iconColor}
                     />
                     <Text style={[s.categoryBtnText, isActive && s.categoryBtnTextActive]}>
                       {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -522,21 +519,21 @@ export default function ScanScreen() {
               })}
             </View>
 
-            {/* 5. AI COACH */}
-            <Text style={s.sectionTitle}>AI COACH</Text>
-            <View style={s.aiCoachCard}>
-              <View style={s.aiCoachIconWrap}>
-                <Ionicons name="planet" size={32} color="#000" />
-              </View>
-              <View style={s.aiCoachContent}>
-                <Text style={s.aiCoachTitle}>{currentPreset.matchLabel ?? 'Great choice! 💪'}</Text>
-                <Text style={s.aiCoachSub}>
-                  {currentPreset.coachFeedback ?? 'High protein meal detected. Consider adding some vegetables or a side salad for better fiber intake.'}
-                </Text>
-              </View>
-              <Ionicons name="sparkles" size={16} color="#A7F3D0" style={{ position: 'absolute', top: 12, right: 24, opacity: 0.8 }} />
-              <Ionicons name="sparkles" size={12} color="#A7F3D0" style={{ position: 'absolute', top: 32, right: 12, opacity: 0.6 }} />
-              <Ionicons name="sparkles" size={20} color="#A7F3D0" style={{ position: 'absolute', bottom: 16, right: 16, opacity: 0.4 }} />
+            {/* 5. AI INSIGHTS */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
+              <Ionicons name="sparkles" size={18} color={ACCENT} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT_PRIMARY, letterSpacing: 0.5 }}>AI Insights</Text>
+            </View>
+            
+            <View style={[s.categoryCard, { padding: 16, flexDirection: 'column', gap: 12, marginBottom: 24 }]}>
+              {(currentPreset.insights || defaultInsights).map((insight: any, index: number) => (
+                <View key={`insight-${index}`} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <Ionicons name={insight.icon as any} size={18} color={insight.color || '#10B981'} style={{ marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: 13, color: TEXT_SECONDARY, lineHeight: 18, fontWeight: '500' }}>
+                    {insight.text}
+                  </Text>
+                </View>
+              ))}
             </View>
 
             {/* 6. HEALTHIER ALTERNATIVES */}
@@ -559,15 +556,23 @@ export default function ScanScreen() {
         )}
       </ScrollView>
 
-      {/* 6. Fixed Bottom Add to Diary Button */}
+      {/* 6. Fixed Bottom Action Bar */}
       {status === 'analyzed' && (
-        <Animated.View entering={FadeInDown.duration(400)} style={[s.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <Animated.View entering={FadeInDown.duration(400)} style={[s.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 20), flexDirection: 'row', gap: 12 }]}>
+          <Pressable
+            onPress={handleRescan}
+            disabled={isLogging}
+            style={({ pressed }) => [s.rescanBtn, pressed && { opacity: 0.85 }, isLogging && { opacity: 0.5 }]}
+          >
+            <Ionicons name="refresh" size={20} color="#115E59" />
+            <Text style={s.rescanText}>Rescan</Text>
+          </Pressable>
           <Pressable
             onPress={handleLogMeal}
             disabled={isLogging}
             style={({ pressed }) => [s.addToDiaryBtn, pressed && { opacity: 0.85 }, isLogging && { opacity: 0.5 }]}
           >
-            <Text style={s.addToDiaryText}>{isLogging ? 'Logging...' : 'Add to Diary'}</Text>
+            <Text style={s.addToDiaryText}>{isLogging ? 'Logging...' : 'Add to Meal'}</Text>
             <View style={s.addToDiaryPlus}>
               <Ionicons name="add" size={20} color={ACCENT} />
             </View>
@@ -581,12 +586,12 @@ export default function ScanScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG },
+  root: { flex: 1, backgroundColor: '#F2FCF5' },
 
   // Header styles
   header: {
     paddingHorizontal: 20,
-    backgroundColor: BG,
+    backgroundColor: 'transparent',
     paddingBottom: 12,
   },
   headerRow: {
@@ -628,7 +633,7 @@ const s = StyleSheet.create({
     width: '100%',
     height: PHOTO_SIZE,
     borderRadius: 24,
-    backgroundColor: '#000',
+    backgroundColor: '#0F172A',
     position: 'relative',
     overflow: 'hidden',
     alignItems: 'center',
@@ -638,7 +643,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     width: 24,
     height: 24,
-    borderWidth: 3.5,
+    borderWidth: 3,
     borderColor: '#FFF',
   },
   cornerTL: { top: 20, left: 20, borderBottomWidth: 0, borderRightWidth: 0, borderTopLeftRadius: 8 },
@@ -648,73 +653,73 @@ const s = StyleSheet.create({
 
   gridRow: {
     position: 'absolute',
-    left: '10%',
-    right: '10%',
+    left: '15%',
+    right: '15%',
     height: 1,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
     borderStyle: 'dashed',
   },
   gridCol: {
     position: 'absolute',
-    top: '10%',
-    bottom: '10%',
+    top: '15%',
+    bottom: '15%',
     width: 1,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
     borderStyle: 'dashed',
   },
   centerScannerIcon: {
-    opacity: 0.6,
+    opacity: 0.9,
   },
 
   // Idle Control Panel
   controlPanel: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
   },
   controlTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: TEXT_PRIMARY,
     textAlign: 'center',
   },
   controlSub: {
-    fontSize: 12.5,
+    fontSize: 13,
     color: TEXT_SECONDARY,
-    lineHeight: 18,
+    lineHeight: 20,
     textAlign: 'center',
     paddingHorizontal: 8,
+    marginBottom: 8,
   },
   actionBtns: {
     width: '100%',
-    gap: 10,
-    marginTop: 6,
+    gap: 12,
   },
   primaryActionBtn: {
-    height: 48,
-    borderRadius: 12,
+    height: 54,
+    borderRadius: 14,
     backgroundColor: ACCENT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryActionBtn: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.40)',
-    borderWidth: 1.5,
-    borderColor: ACCENT_BORDER,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.60)',
+    backgroundColor: 'rgba(34, 197, 94, 0.05)',
   },
   actionBtnText: {
-    fontSize: 14.5,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFF',
   },
@@ -1053,13 +1058,34 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: BG,
+    backgroundColor: 'transparent', // Make it blend with the green bg
     paddingHorizontal: 20,
     paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.03)',
+  },
+  rescanBtn: {
+    flex: 0.4,
+    backgroundColor: '#FFF',
+    height: 56,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(17, 94, 89, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  rescanText: {
+    color: '#115E59',
+    fontSize: 16,
+    fontWeight: '800',
+    marginLeft: 6,
   },
   addToDiaryBtn: {
+    flex: 0.6,
     backgroundColor: ACCENT,
     height: 56,
     borderRadius: 16,

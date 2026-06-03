@@ -8,7 +8,9 @@ import {
   Image,
   Dimensions,
   Modal,
+  Switch,
 } from 'react-native'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -35,6 +37,8 @@ import { useProfile } from '@/hooks/useProfile'
 import { useProfileGoals, useUpdateProfileGoals } from '@/hooks/useFoodLogs'
 import { useToast } from '@/contexts/ToastContext'
 import Svg, { Circle } from 'react-native-svg'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { scheduleDailyReminders, cancelAllReminders } from '@/hooks/useNotifications'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -111,6 +115,60 @@ export default function ProfileScreen() {
   const [signOutModal, setSignOutModal] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [errorModal, setErrorModal] = useState<string | null>(null)
+  
+  const [smartReminders, setSmartReminders] = useState(false)
+  const [breakfastTime, setBreakfastTime] = useState(new Date(new Date().setHours(9, 0, 0, 0)))
+  const [lunchTime, setLunchTime] = useState(new Date(new Date().setHours(13, 30, 0, 0)))
+  const [dinnerTime, setDinnerTime] = useState(new Date(new Date().setHours(19, 30, 0, 0)))
+  const [showPicker, setShowPicker] = useState(false)
+  const [editingMeal, setEditingMeal] = useState<'breakfast' | 'lunch' | 'dinner' | null>(null)
+
+  // Load reminder preference
+  useEffect(() => {
+    AsyncStorage.getItem('smart_reminders').then(val => {
+      if (val === 'true') setSmartReminders(true)
+    })
+    AsyncStorage.getItem('reminder_times').then(val => {
+      if (val) {
+        const parsed = JSON.parse(val)
+        if (parsed.breakfast) setBreakfastTime(new Date(parsed.breakfast))
+        if (parsed.lunch) setLunchTime(new Date(parsed.lunch))
+        if (parsed.dinner) setDinnerTime(new Date(parsed.dinner))
+      }
+    })
+  }, [])
+
+  const toggleReminders = async (val: boolean) => {
+    setSmartReminders(val)
+    await AsyncStorage.setItem('smart_reminders', String(val))
+    if (val) {
+      await scheduleDailyReminders(breakfastTime, lunchTime, dinnerTime)
+      showToast('Smart reminders enabled!', 'success')
+    } else {
+      await cancelAllReminders()
+      showToast('Smart reminders disabled.', 'success')
+    }
+  }
+
+  const onTimeChange = async (event: any, selectedDate?: Date) => {
+    setShowPicker(false)
+    if (!selectedDate || !editingMeal) return
+    
+    let newB = breakfastTime, newL = lunchTime, newD = dinnerTime
+    if (editingMeal === 'breakfast') { setBreakfastTime(selectedDate); newB = selectedDate; }
+    if (editingMeal === 'lunch') { setLunchTime(selectedDate); newL = selectedDate; }
+    if (editingMeal === 'dinner') { setDinnerTime(selectedDate); newD = selectedDate; }
+    
+    await AsyncStorage.setItem('reminder_times', JSON.stringify({
+      breakfast: newB.toISOString(),
+      lunch: newL.toISOString(),
+      dinner: newD.toISOString()
+    }))
+    
+    if (smartReminders) {
+      await scheduleDailyReminders(newB, newL, newD)
+    }
+  }
 
   // Hydrate local states once values load
   useEffect(() => {
@@ -375,6 +433,59 @@ export default function ProfileScreen() {
           <Text style={s.actionTileText}>Settings</Text>
         </Pressable>
       </Card>
+
+      <View style={[s.sectionHeader, { marginTop: 8 }]}>
+        <Ionicons name="notifications-outline" size={17} color={MINT_SECONDARY} style={{ marginRight: 6 }} />
+        <Text style={s.sectionTitleText}>Preferences</Text>
+      </View>
+
+      <Card style={[s.goalsCard, { paddingVertical: 12, paddingHorizontal: 16 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <View style={[s.actionIconCircle, { backgroundColor: 'rgba(34, 197, 94, 0.08)', marginRight: 12 }]}>
+              <Ionicons name="notifications" size={17} color={MINT_SECONDARY} />
+            </View>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={[s.actionTileText, { marginTop: 0 }]}>Smart Reminders</Text>
+              <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 2 }}>
+                Daily alerts to log your meals
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={smartReminders}
+            onValueChange={toggleReminders}
+            trackColor={{ false: '#E5E7EB', true: MINT_PRIMARY }}
+            thumbColor={'#FFF'}
+          />
+        </View>
+
+        {smartReminders && (
+          <View style={s.remindersConfigContainer}>
+            <Pressable onPress={() => { setEditingMeal('breakfast'); setShowPicker(true) }} style={s.timeRow}>
+              <Text style={s.timeRowLabel}>Breakfast</Text>
+              <Text style={s.timeRowValue}>{breakfastTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+            </Pressable>
+            <Pressable onPress={() => { setEditingMeal('lunch'); setShowPicker(true) }} style={s.timeRow}>
+              <Text style={s.timeRowLabel}>Lunch</Text>
+              <Text style={s.timeRowValue}>{lunchTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+            </Pressable>
+            <Pressable onPress={() => { setEditingMeal('dinner'); setShowPicker(true) }} style={s.timeRow}>
+              <Text style={s.timeRowLabel}>Dinner</Text>
+              <Text style={s.timeRowValue}>{dinnerTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+            </Pressable>
+          </View>
+        )}
+      </Card>
+
+      {showPicker && (
+        <DateTimePicker
+          value={editingMeal === 'breakfast' ? breakfastTime : editingMeal === 'lunch' ? lunchTime : dinnerTime}
+          mode="time"
+          display="default"
+          onChange={onTimeChange}
+        />
+      )}
 
       {/* ─── Sign Out Button ─── */}
       <Pressable
@@ -842,5 +953,31 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFF',
+  },
+  remindersConfigContainer: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  timeRowLabel: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: TEXT_SECONDARY,
+  },
+  timeRowValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: MINT_SECONDARY,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
 })
