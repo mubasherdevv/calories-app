@@ -268,7 +268,7 @@ const s = StyleSheet.create({
 
   footer: {
     position: 'absolute',
-    bottom: 34, left: 16, right: 16,
+    bottom: 48, left: 16, right: 16,
     borderRadius: 32,
     paddingHorizontal: 20,
     paddingTop: 20,
