@@ -1,4 +1,4 @@
-# AI Conversation Session Log — Cal AI (Full History)
+# AI Conversation Session Log — SnapBite App (Full History)
 
 This log documents every single interaction and turn of the conversation history in English, formatted with standard headers to comply with the 8x contest guidelines.
 
