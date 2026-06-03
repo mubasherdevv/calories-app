@@ -194,7 +194,7 @@ export default function LoginScreen() {
               </Pressable>
 
               <Image
-                source={require('../../assets/pic.png')}
+                source={require('../../assets/img2.png')}
                 style={s.heroImage}
               />
             </View>
@@ -211,7 +211,7 @@ export default function LoginScreen() {
           )}
 
           {/* Form Container */}
-          <View style={[s.formContainer, isSignUp && { flex: 1, justifyContent: 'center', paddingBottom: 60 }]}>
+          <View style={[s.formContainer, { flex: 1, justifyContent: 'center', paddingBottom: isSignUp ? 80 : 0 }]}>
             {/* Title Section */}
             <Animated.View entering={FadeInDown.delay(100).duration(500)} style={s.titleSection}>
               <Text style={s.titleText}>{isSignUp ? 'Create Account' : 'Welcome back! 👋'}</Text>
