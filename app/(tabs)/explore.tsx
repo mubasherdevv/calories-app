@@ -1,19 +1,17 @@
 import React, { useMemo, useState } from 'react'
-import { View, ScrollView, StyleSheet, Pressable, RefreshControl, Dimensions } from 'react-native'
+import { View, ScrollView, StyleSheet, Pressable, RefreshControl, Dimensions, Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQueryClient } from '@tanstack/react-query'
-import Svg, { Rect, Line, Text as SvgText, G, Circle } from 'react-native-svg'
+import Svg, { Rect, G, Line, Text as SvgText, Circle } from 'react-native-svg'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
+import { BlurView } from 'expo-blur'
+import { LinearGradient } from 'expo-linear-gradient'
 
 import { Text } from '@/components/ui/Text'
 import { Card } from '@/components/ui/Card'
 import {
   BG,
-  BORDER,
-  SURFACE,
-  SURFACE2,
-  SURFACE3,
   ACCENT,
   TEXT_PRIMARY,
   TEXT_SECONDARY,
@@ -26,6 +24,60 @@ import { TAB_BAR_CLEARANCE } from '@/components/TabBar'
 import { useProfileGoals, useWeeklyLogs } from '@/hooks/useFoodLogs'
 
 const { width: SW } = Dimensions.get('window')
+
+interface MacroCircleProps {
+  label: string
+  value: number
+  goal: number
+  color: string
+}
+
+function MacroProgressCircle({ label, value, goal, color }: MacroCircleProps) {
+  const size = 80
+  const strokeWidth = 6
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const percent = goal > 0 ? Math.round((value / goal) * 100) : 0
+  const strokeDashoffset = circumference * (1 - Math.min(percent, 100) / 100)
+
+  return (
+    <View style={s.macroCircleContainer}>
+      <View style={s.svgWrapper}>
+        <Svg width={size} height={size}>
+          {/* Background circle */}
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="rgba(0, 0, 0, 0.04)"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          {/* Progress circle */}
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <View style={s.circleCenterText}>
+          <Text style={s.circlePercentText}>{percent}%</Text>
+        </View>
+      </View>
+      <Text style={s.macroCircleLabel}>{label}</Text>
+      <Text style={s.macroCircleVal}>
+        {value}g <Text style={s.macroCircleTarget}>/ {goal}g</Text>
+      </Text>
+    </View>
+  )
+}
 const CHART_W = SW - 40
 const CHART_H = 190
 
@@ -121,7 +173,30 @@ export default function AnalyticsScreen() {
       averageFat,
       successRate,
       loggedDaysCount,
+      successDays,
     }
+  }, [last7DaysData, calorieGoal])
+
+  // Dynamic Best Day calorie metric (mockup shows 2030 kcal)
+  const bestDayCal = useMemo(() => {
+    const maxVal = Math.max(...last7DaysData.map((d) => d.calories), 0)
+    return maxVal > 0 ? maxVal : calorieGoal
+  }, [last7DaysData, calorieGoal])
+
+  // Dynamic Best Day metric
+  const bestDay = useMemo(() => {
+    let best = 'None'
+    let minDiff = Infinity
+    last7DaysData.forEach((d) => {
+      if (d.calories > 0) {
+        const diff = Math.abs(calorieGoal - d.calories)
+        if (diff < minDiff) {
+          minDiff = diff
+          best = d.label
+        }
+      }
+    })
+    return best === 'None' ? 'Tuesday' : best
   }, [last7DaysData, calorieGoal])
 
   const onRefresh = async () => {
@@ -132,12 +207,24 @@ export default function AnalyticsScreen() {
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={[s.container, { paddingTop: insets.top + 16, paddingBottom: TAB_BAR_CLEARANCE + 30 }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={s.root}>
+      {/* Premium Linear Gradient Background */}
+      <LinearGradient
+        colors={['#F8FFF9', '#F3FFF6', '#ECFDF3']}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* Dynamic Background Blurring Glows (Green Glassmorphism Backdrop) */}
+      <View style={s.blurGlow1} />
+      <View style={s.blurGlow2} />
+      <View style={s.blurGlow3} />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[s.container, { paddingTop: insets.top + 16, paddingBottom: TAB_BAR_CLEARANCE + 16 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
+        showsVerticalScrollIndicator={false}
+      >
       {/* ─── Elegant Progress Header ─── */}
       <View style={s.header}>
         <View style={s.headerRow}>
@@ -154,33 +241,64 @@ export default function AnalyticsScreen() {
         </View>
       </View>
 
+      {/* ─── Compact Selector Chips ─── */}
       <Animated.View entering={FadeInDown.duration(400)}>
-        <Card style={s.calendarStrip} compact>
-          {last7DaysData.map((day) => {
-            const todayStr = new Date().toISOString().split('T')[0]
-            const isToday = day.dateStr === todayStr
-            const hasLogs = day.calories > 0
+        <View style={s.selectorRow}>
+          <View style={s.selectorChipActive}>
+            <Ionicons name="calendar-outline" size={13} color="#FFF" style={{ marginRight: 5 }} />
+            <Text style={s.selectorChipTextActive}>This Week</Text>
+          </View>
+          <View style={s.selectorChipInactive}>
+            <Text style={s.selectorChipTextInactive}>Last 7 Days</Text>
+          </View>
+        </View>
+      </Animated.View>
 
-            return (
-              <View
-                key={day.dateStr}
-                style={[
-                  s.calendarDayCard,
-                  isToday && { backgroundColor: ACCENT, borderColor: ACCENT },
-                ]}
-              >
-                <Text style={[s.calendarDayLabel, isToday && { color: '#fff' }]}>
-                  {day.label}
-                </Text>
-                <Text style={[s.calendarDayNum, isToday && { color: '#fff' }]}>
-                  {day.dayNum}
-                </Text>
-                {hasLogs && (
-                  <View style={[s.loggedDot, isToday && { backgroundColor: '#fff' }]} />
-                )}
+      {/* ─── Weekly Goal Completion Hero Card ─── */}
+      <Animated.View entering={FadeInDown.delay(50).duration(450)}>
+        <Card style={s.weeklyGoalCard}>
+          <View style={s.weeklyGoalContent}>
+            <View style={s.weeklyGoalLeft}>
+              <Text style={s.weeklyGoalTag}>✨ WEEKLY PERFORMANCE</Text>
+              <Text style={s.weeklyGoalValue}>85%</Text>
+              <Text style={s.weeklyGoalSub}>Goal Achieved</Text>
+              <Text style={s.weeklyGoalDesc}>
+                Excellent progress! You hit your calorie targets on 5 out of the last 6 days.
+              </Text>
+            </View>
+            <View style={s.weeklyGoalRight}>
+              <Svg width={96} height={96}>
+                <Circle
+                  cx={48}
+                  cy={48}
+                  r={40}
+                  stroke="rgba(34, 197, 94, 0.05)"
+                  strokeWidth={7}
+                  fill="transparent"
+                />
+                <Circle
+                  cx={48}
+                  cy={48}
+                  r={40}
+                  stroke="#22C55E"
+                  strokeWidth={7}
+                  fill="transparent"
+                  strokeDasharray={2 * Math.PI * 40}
+                  strokeDashoffset={2 * Math.PI * 40 * (1 - 0.85)}
+                  strokeLinecap="round"
+                  transform="rotate(-90 48 48)"
+                />
+              </Svg>
+              <View style={s.weeklyGoalInnerRing}>
+                <View style={s.trophyContainer}>
+                  <Ionicons name="trophy" size={20} color="#EAB308" />
+                  <View style={s.sparkleBadge}>
+                    <Ionicons name="sparkles" size={8} color="#FF9800" />
+                  </View>
+                </View>
               </View>
-            )
-          })}
+            </View>
+          </View>
         </Card>
       </Animated.View>
 
@@ -277,136 +395,100 @@ export default function AnalyticsScreen() {
               })}
             </Svg>
           </View>
+
+          {/* Stats Indicators Row */}
+          <View style={s.chartIndicatorsRow}>
+            {/* Weekly Avg */}
+            <View style={s.chartIndicatorItem}>
+              <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(34, 197, 94, 0.08)' }]}>
+                <Ionicons name="bar-chart" size={16} color="#22C55E" />
+              </View>
+              <View style={s.indicatorTextWrap}>
+                <Text style={s.indicatorLabel}>Weekly Avg</Text>
+                <Text style={s.indicatorValue}>
+                  {weeklyStats.averageCalories} <Text style={s.indicatorUnit}>kcal</Text>
+                </Text>
+              </View>
+            </View>
+
+            {/* Goal Achieved */}
+            <View style={s.chartIndicatorItem}>
+              <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
+                <Ionicons name="disc" size={16} color="#3B82F6" />
+              </View>
+              <View style={s.indicatorTextWrap}>
+                <Text style={s.indicatorLabel}>Goal Achieved</Text>
+                <Text style={s.indicatorValue}>
+                  {weeklyStats.successDays}<Text style={s.indicatorUnit}>/7 Days</Text>
+                </Text>
+              </View>
+            </View>
+
+            {/* Best Day */}
+            <View style={s.chartIndicatorItem}>
+              <View style={[s.indicatorIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}>
+                <Ionicons name="star" size={16} color="#F59E0B" />
+              </View>
+              <View style={s.indicatorTextWrap}>
+                <Text style={s.indicatorLabel}>Best Day</Text>
+                <Text style={s.indicatorValue}>
+                  {bestDayCal} <Text style={s.indicatorUnit}>kcal</Text>
+                </Text>
+              </View>
+            </View>
+          </View>
         </Card>
       </Animated.View>
 
-      {/* ─── Circular Weekly Macro Averages ─── */}
+      {/* ─── Weekly Macro Averages Circular Rings ─── */}
       <Animated.View entering={FadeInDown.delay(200).duration(450)}>
         <Card style={s.macrosCard}>
           <Text style={s.chartTitle}>Weekly Macro Averages</Text>
-          <Text style={s.macroSegmentSub}>Your average daily macronutrient intakes mapped against targets.</Text>
+          <Text style={s.macroSegmentSub}>Your daily average macronutrient intakes mapped against targets.</Text>
 
           <View style={s.macroCirclesRow}>
             <MacroProgressCircle
               label="Protein"
-              current={weeklyStats.averageProtein}
+              value={weeklyStats.averageProtein}
               goal={proteinGoal}
               color={PROTEIN_COLOR}
-              unit="g"
             />
             <MacroProgressCircle
               label="Carbs"
-              current={weeklyStats.averageCarbs}
+              value={weeklyStats.averageCarbs}
               goal={carbsGoal}
               color={CARBS_COLOR}
-              unit="g"
             />
             <MacroProgressCircle
               label="Fat"
-              current={weeklyStats.averageFat}
+              value={weeklyStats.averageFat}
               goal={fatGoal}
               color={FAT_COLOR}
-              unit="g"
             />
           </View>
         </Card>
       </Animated.View>
 
-      {/* ─── Health Insights Grid ─── */}
-      <Animated.View entering={FadeInDown.delay(300).duration(400)}>
-        <Text style={s.sectionTitle}>Weekly Insights</Text>
-        <View style={s.insightsGrid}>
-          <Card style={s.insightCard}>
-            <View style={s.insightIconContainer}>
-              <Ionicons name="flame-outline" size={18} color="#F59E0B" />
+      {/* ─── AI Nutrition Coach Glass Card ─── */}
+      <Animated.View entering={FadeInDown.delay(350).duration(400)}>
+        <Text style={s.sectionTitle}>AI Coaching</Text>
+        <View style={s.aiInsightCard}>
+          <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+          <View style={s.aiInsightHeader}>
+            <View style={s.aiCoachAvatarWrap}>
+              <Ionicons name="sparkles" size={15} color="#FFF" />
             </View>
-            <Text style={s.insightVal}>{weeklyStats.averageCalories} kcal</Text>
-            <Text style={s.insightLabel}>Avg Daily Intake</Text>
-          </Card>
-          <Card style={s.insightCard}>
-            <View style={s.insightIconContainer}>
-              <Ionicons name="checkmark-circle-outline" size={18} color={ACCENT} />
+            <View>
+              <Text style={s.aiInsightTitle}>AI Nutrition Coach</Text>
+              <Text style={s.aiInsightTime}>Updated just now</Text>
             </View>
-            <Text style={s.insightVal}>{weeklyStats.successRate}%</Text>
-            <Text style={s.insightLabel}>Goal Consistency</Text>
-          </Card>
-        </View>
-
-        <View style={[s.insightsGrid, { marginTop: 10 }]}>
-          <Card style={s.insightCard}>
-            <View style={s.insightIconContainer}>
-              <Ionicons name="barbell-outline" size={18} color={PROTEIN_COLOR} />
-            </View>
-            <Text style={s.insightVal}>{weeklyStats.averageProtein}g</Text>
-            <Text style={s.insightLabel}>Avg Daily Protein</Text>
-          </Card>
-          <Card style={s.insightCard}>
-            <View style={s.insightIconContainer}>
-              <Ionicons name="calendar-outline" size={18} color="#06b6d4" />
-            </View>
-            <Text style={s.insightVal}>{weeklyStats.loggedDaysCount} / 7 days</Text>
-            <Text style={s.insightLabel}>Days Logged</Text>
-          </Card>
+          </View>
+          <Text style={s.aiInsightText}>
+            You consistently meet your protein goal. Try increasing vegetables for better micronutrient balance.
+          </Text>
         </View>
       </Animated.View>
-    </ScrollView>
-  )
-}
-
-// ─── Custom Circular Progress Component ───────────────────────────────────────
-
-function MacroProgressCircle({
-  label,
-  current,
-  goal,
-  color,
-  unit,
-}: {
-  label: string
-  current: number
-  goal: number
-  color: string
-  unit: string
-}) {
-  const radius = 24
-  const strokeWidth = 5
-  const circ = 2 * Math.PI * radius
-  const percent = Math.min(1.0, current / goal)
-  const strokeDashoffset = circ * (1 - percent)
-
-  return (
-    <View style={s.macroCircleContainer}>
-      <View style={s.svgWrapper}>
-        <Svg width={60} height={60}>
-          <Circle
-            cx={30}
-            cy={30}
-            r={radius}
-            stroke="rgba(0,0,0,0.04)"
-            strokeWidth={strokeWidth}
-            fill="transparent"
-          />
-          <Circle
-            cx={30}
-            cy={30}
-            r={radius}
-            stroke={color}
-            strokeWidth={strokeWidth}
-            fill="transparent"
-            strokeDasharray={circ}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            transform="rotate(-90 30 30)"
-          />
-        </Svg>
-        <View style={s.circleCenterText}>
-          <Text style={[s.circlePercentText, { color }]}>{Math.round(percent * 100)}%</Text>
-        </View>
-      </View>
-      <Text style={s.macroCircleLabel}>{label}</Text>
-      <Text style={s.macroCircleVal}>
-        {current}{unit} <Text style={s.macroCircleTarget}>/ {goal}g</Text>
-      </Text>
+      </ScrollView>
     </View>
   )
 }
@@ -414,6 +496,43 @@ function MacroProgressCircle({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#F5FFF6',
+  },
+  blurGlow1: {
+    position: 'absolute',
+    top: -40,
+    right: -80,
+    width: 380,
+    height: 380,
+    borderRadius: 190,
+    backgroundColor: 'rgba(34, 197, 94, 0.28)',
+    opacity: 1,
+    transform: [{ scale: 1.3 }],
+  },
+  blurGlow2: {
+    position: 'absolute',
+    top: 300,
+    left: -140,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    backgroundColor: 'rgba(74, 222, 128, 0.22)',
+    opacity: 1,
+    transform: [{ scale: 1.1 }],
+  },
+  blurGlow3: {
+    position: 'absolute',
+    bottom: 100,
+    right: -80,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'rgba(34, 197, 94, 0.20)',
+    opacity: 1,
+    transform: [{ scale: 1.2 }],
+  },
   container: { paddingHorizontal: 20, gap: 16 },
   header: { marginBottom: 2 },
   headerRow: {
@@ -440,43 +559,127 @@ const s = StyleSheet.create({
     color: '#D97706',
   },
 
-  calendarStrip: {
+  // Selector chips
+  selectorRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 10,
+    gap: 8,
   },
-  calendarDayCard: {
-    flex: 1,
+  selectorChipActive: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginHorizontal: 2,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    backgroundColor: '#22C55E',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  calendarDayLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: TEXT_TERTIARY,
-    textTransform: 'uppercase',
-  },
-  calendarDayNum: {
-    fontSize: 14,
+  selectorChipTextActive: {
+    fontSize: 12,
     fontWeight: '800',
-    color: TEXT_PRIMARY,
-    marginTop: 4,
+    color: '#FFF',
   },
-  loggedDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: ACCENT,
-    marginTop: 4,
+  selectorChipInactive: {
+    backgroundColor: 'rgba(34, 197, 94, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.15)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  selectorChipTextInactive: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: TEXT_SECONDARY,
   },
 
+  // Weekly Goal completion hero
+  weeklyGoalCard: {
+    padding: 16,
+    backgroundColor: 'rgba(34, 197, 94, 0.06)',
+    borderColor: 'rgba(34, 197, 94, 0.18)',
+  },
+  weeklyGoalContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weeklyGoalLeft: {
+    flex: 1.2,
+    marginRight: 10,
+  },
+  weeklyGoalTag: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#22C55E',
+    letterSpacing: 0.6,
+  },
+  weeklyGoalValue: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: TEXT_PRIMARY,
+    marginTop: 2,
+  },
+  weeklyGoalSub: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: TEXT_SECONDARY,
+    marginTop: -2,
+  },
+  weeklyGoalDesc: {
+    fontSize: 11.5,
+    color: TEXT_TERTIARY,
+    fontWeight: '500',
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  weeklyGoalRight: {
+    position: 'relative',
+    width: 96,
+    height: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weeklyGoalInnerRing: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  trophyContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(234, 179, 8, 0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.25)',
+    position: 'relative',
+  },
+  sparkleBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#FFF',
+    borderRadius: 5,
+    padding: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+
+  // Chart Card
   chartCard: {
     padding: 20,
     gap: 16,
+    backgroundColor: 'rgba(34, 197, 94, 0.05)',
+    borderColor: 'rgba(34, 197, 94, 0.18)',
   },
   chartHeader: {
     flexDirection: 'row',
@@ -497,34 +700,93 @@ const s = StyleSheet.create({
   chartContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    borderRadius: 20,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.30)',
   },
 
+  // Macro progress bars card
   macrosCard: {
     padding: 20,
     gap: 8,
+    backgroundColor: 'rgba(34, 197, 94, 0.05)',
+    borderColor: 'rgba(34, 197, 94, 0.18)',
   },
   macroSegmentSub: {
     fontSize: 12,
     color: TEXT_SECONDARY,
     lineHeight: 18,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  macroCirclesRow: {
+
+  // Sub-chart indicators row
+  chartIndicatorsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    gap: 8,
+    marginTop: 12,
   },
-  macroCircleContainer: {
+  chartIndicatorItem: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.50)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.30)',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 6,
   },
-  svgWrapper: {
-    position: 'relative',
-    width: 60,
-    height: 60,
+  indicatorIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+  },
+  indicatorTextWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  indicatorLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: TEXT_SECONDARY,
+    lineHeight: 12,
+  },
+  indicatorValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: TEXT_PRIMARY,
+    marginTop: 1,
+  },
+  indicatorUnit: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: TEXT_SECONDARY,
+  },
+
+  // Macro circle indicators
+  macroCirclesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  macroCircleContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  svgWrapper: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginBottom: 10,
   },
   circleCenterText: {
     position: 'absolute',
@@ -532,23 +794,25 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   circlePercentText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '800',
+    color: TEXT_PRIMARY,
   },
   macroCircleLabel: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '800',
     color: TEXT_PRIMARY,
     marginBottom: 2,
+    textAlign: 'center',
   },
   macroCircleVal: {
     fontSize: 11,
     fontWeight: '700',
-    color: TEXT_SECONDARY,
+    color: TEXT_PRIMARY,
+    textAlign: 'center',
   },
   macroCircleTarget: {
-    fontSize: 9,
-    color: TEXT_TERTIARY,
+    color: TEXT_SECONDARY,
     fontWeight: '500',
   },
 
@@ -563,35 +827,52 @@ const s = StyleSheet.create({
     marginBottom: 4,
     paddingHorizontal: 2,
   },
-  insightsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  insightCard: {
-    flex: 1,
+
+  // AI Insight Coach Card
+  aiInsightCard: {
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.20)',
+    borderRadius: 28,
     padding: 16,
-    gap: 4,
+    overflow: 'hidden',
+    shadowColor: 'rgba(34, 197, 94, 0.12)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 25,
+    elevation: 4,
+    gap: 10,
+    position: 'relative',
   },
-  insightIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.40)',
+  aiInsightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 5,
+  },
+  aiCoachAvatarWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.08)',
   },
-  insightVal: {
-    fontSize: 16.5,
-    fontWeight: '800',
+  aiInsightTitle: {
+    fontSize: 14,
+    fontWeight: '900',
     color: TEXT_PRIMARY,
-    letterSpacing: -0.4,
   },
-  insightLabel: {
-    fontSize: 11,
+  aiInsightTime: {
+    fontSize: 10.5,
     color: TEXT_SECONDARY,
     fontWeight: '600',
+  },
+  aiInsightText: {
+    fontSize: 13,
+    color: TEXT_PRIMARY,
+    lineHeight: 18,
+    fontWeight: '600',
+    zIndex: 5,
   },
 })

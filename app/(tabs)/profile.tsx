@@ -162,12 +162,24 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView
-      style={s.root}
-      contentContainerStyle={[s.container, { paddingTop: insets.top + 16, paddingBottom: TAB_BAR_CLEARANCE + 16 }]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={s.rootWrapper}>
+      {/* Premium Linear Gradient Background */}
+      <LinearGradient
+        colors={['#F8FFF9', '#F3FFF6', '#ECFDF3']}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* Dynamic Background Blurring Glows */}
+      <View style={s.blurGlow1} />
+      <View style={s.blurGlow2} />
+      <View style={s.blurGlow3} />
+
+      <ScrollView
+        style={s.root}
+        contentContainerStyle={[s.container, { paddingTop: insets.top + 16, paddingBottom: TAB_BAR_CLEARANCE + 16 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       {/* ─── Profile Header Section ─── */}
       <View style={s.headerRow}>
         <View style={s.avatarContainer}>
@@ -182,12 +194,14 @@ export default function ProfileScreen() {
 
         <View style={s.headerInfo}>
           <View style={s.nameBadgeRow}>
-            <Text style={s.nameText}>{profile?.fullName ?? 'MUbadh Dev'}</Text>
+            <Text style={s.nameText}>{profile?.fullName || 'Guest'}</Text>
             <Ionicons name="checkmark-circle" size={16} color={MINT_SECONDARY} style={{ marginLeft: 4 }} />
           </View>
-          <Text style={s.emailText} numberOfLines={1} ellipsizeMode="tail">
-            {profile?.email ?? 'seoworking009@gmail.com'}
-          </Text>
+          {profile?.email ? (
+            <Text style={s.emailText} numberOfLines={1} ellipsizeMode="tail">
+              {profile.email}
+            </Text>
+          ) : null}
           <View style={s.streakPill}>
             <Text style={s.streakPillText}>🔥 {goals?.streakCount ?? 1} Day Streak</Text>
           </View>
@@ -377,11 +391,12 @@ export default function ProfileScreen() {
         visible={editGoalsModal}
         transparent
         animationType="slide"
+        statusBarTranslucent={true}
         onRequestClose={() => setEditGoalsModal(false)}
       >
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setEditGoalsModal(false)} />
-          <View style={s.modalContainer}>
+          <View style={[s.modalContainer, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Update Nutritional Targets</Text>
               <Pressable onPress={() => setEditGoalsModal(false)} hitSlop={10}>
@@ -462,12 +477,50 @@ export default function ProfileScreen() {
         buttons={[{ text: 'OK', onPress: () => setErrorModal(null) }]}
         onDismiss={() => setErrorModal(null)}
       />
-    </ScrollView>
+      </ScrollView>
+    </View>
   )
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG_MINT },
+  rootWrapper: {
+    flex: 1,
+    backgroundColor: BG_MINT,
+  },
+  root: { flex: 1 },
+  blurGlow1: {
+    position: 'absolute',
+    top: -40,
+    right: -80,
+    width: 380,
+    height: 380,
+    borderRadius: 190,
+    backgroundColor: 'rgba(34, 197, 94, 0.28)',
+    opacity: 1,
+    transform: [{ scale: 1.3 }],
+  },
+  blurGlow2: {
+    position: 'absolute',
+    top: 300,
+    left: -140,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    backgroundColor: 'rgba(74, 222, 128, 0.22)',
+    opacity: 1,
+    transform: [{ scale: 1.1 }],
+  },
+  blurGlow3: {
+    position: 'absolute',
+    bottom: 100,
+    right: -80,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'rgba(34, 197, 94, 0.20)',
+    opacity: 1,
+    transform: [{ scale: 1.2 }],
+  },
   container: { paddingHorizontal: 20, gap: 18 },
 
   // Header row elements

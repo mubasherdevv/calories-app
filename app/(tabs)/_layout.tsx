@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router'
-import { House, Compass, Bell, CircleUser } from 'lucide-react-native'
+import { House, TrendingUp, Bell, CircleUser } from 'lucide-react-native'
 import TabBar, { TAB_BAR_HEIGHT } from '@/components/TabBar'
 import { BG } from '@/lib/theme'
 
@@ -26,9 +26,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          tabBarLabel: 'Explore',
+          tabBarLabel: 'Progress',
           tabBarIcon: ({ color }) => (
-            <Compass size={22} color={color} stroke={color} strokeWidth={2.0} />
+            <TrendingUp size={22} color={color} stroke={color} strokeWidth={2.0} />
           ),
         }}
       />

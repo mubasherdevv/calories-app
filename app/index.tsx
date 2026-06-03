@@ -45,7 +45,7 @@ export default function LandingScreen() {
 
   // Slider animation and responder variables
   const sliderWidth = SW - 32 - 40 // SW - 32 (margins) - 40 (paddings)
-  const handleSize = 48
+  const handleSize = 40
   const maxDistance = sliderWidth - handleSize - 8 // 8px inside margin
 
   const pan = useRef(new RNAnimated.Value(0)).current
@@ -141,7 +141,7 @@ export default function LandingScreen() {
 
       {/* Full-screen food background image with slight blur for high readability */}
       <ImageBackground
-        source={require('../assets/food-bg.jpg')}
+        source={require('../assets/food-bg.png')}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
         blurRadius={Platform.OS === 'ios' ? 4 : 3}
@@ -193,7 +193,7 @@ export default function LandingScreen() {
             {...panResponder.panHandlers}
             style={[s.sliderHandle, handleStyle]}
           >
-            <Ionicons name="chevron-forward" size={20} color={ACCENT} />
+            <Ionicons name="chevron-forward" size={18} color={ACCENT} />
           </RNAnimated.View>
         </View>
 
@@ -290,7 +290,7 @@ const s = StyleSheet.create({
     bottom: 20, left: 16, right: 16,
     borderRadius: 32,
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingVertical: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.42)',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.15)',
@@ -301,7 +301,7 @@ const s = StyleSheet.create({
       },
       default: {},
     }),
-    gap: 16,
+    gap: 10,
     alignItems: 'center',
     zIndex: 10,
   },
@@ -309,9 +309,9 @@ const s = StyleSheet.create({
   // Swipe-to-Start Button styling
   sliderTrack: {
     width: '100%',
-    height: 56,
+    height: 48,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.18)',
     flexDirection: 'row',
@@ -325,14 +325,14 @@ const s = StyleSheet.create({
     right: 0,
     textAlign: 'center',
     color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   sliderHandle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',

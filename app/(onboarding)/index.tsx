@@ -116,7 +116,7 @@ function MetricScrollPicker({ min, max, value, onChange }: MetricPickerProps) {
               }}
               style={{
                 width: ITEM_WIDTH,
-                height: 44,
+                height: 38,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -383,7 +383,11 @@ export default function OnboardingScreen() {
       >
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[s.scrollContainer, { paddingBottom: insets.bottom + 110 }]}
+          contentContainerStyle={[
+            s.scrollContainer,
+            { paddingBottom: step === 1 ? insets.bottom + 80 : insets.bottom + 110 }
+          ]}
+          scrollEnabled={step !== 1}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           bounces={false}
@@ -398,7 +402,7 @@ export default function OnboardingScreen() {
               <View style={s.avatarBadgeContainer}>
                 <View style={s.avatarGlowOuter}>
                   <View style={s.avatarGlowInner}>
-                    <Ionicons name="person" size={32} color="#FFF" />
+                    <Ionicons name="person" size={20} color="#FFF" />
                   </View>
                 </View>
                 <View style={s.sparkleDot1} />
@@ -433,7 +437,7 @@ export default function OnboardingScreen() {
                 </View>
 
                 {/* Last Name Input */}
-                <View style={[s.inputWrapper, { marginTop: 14 }]}>
+                <View style={[s.inputWrapper, { marginTop: 8 }]}>
                   <Text style={s.label}>Last Name</Text>
                   <View style={s.textInputBox}>
                     <TextInput
@@ -489,6 +493,7 @@ export default function OnboardingScreen() {
                   <View style={s.dateWheelColumn}>
                     <ScrollView
                       ref={dayScrollRef}
+                      nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={false}
                       snapToInterval={34}
                       decelerationRate="fast"
@@ -520,6 +525,7 @@ export default function OnboardingScreen() {
                   <View style={s.dateWheelColumn}>
                     <ScrollView
                       ref={monthScrollRef}
+                      nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={false}
                       snapToInterval={34}
                       decelerationRate="fast"
@@ -551,6 +557,7 @@ export default function OnboardingScreen() {
                   <View style={s.dateWheelColumn}>
                     <ScrollView
                       ref={yearScrollRef}
+                      nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={false}
                       snapToInterval={34}
                       decelerationRate="fast"
@@ -1131,10 +1138,10 @@ const s = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    gap: 20,
+    gap: 12,
   },
   cardStack: {
-    gap: 16,
+    gap: 10,
     width: '100%',
   },
 
@@ -1142,23 +1149,23 @@ const s = StyleSheet.create({
   avatarBadgeContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 90,
+    height: 64,
     position: 'relative',
     alignSelf: 'center',
-    width: 90,
+    width: 64,
   },
   avatarGlowOuter: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'rgba(74, 222, 128, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarGlowInner: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: MINT_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1170,42 +1177,42 @@ const s = StyleSheet.create({
   },
   sparkleDot1: {
     position: 'absolute',
-    top: 14,
-    right: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    top: 8,
+    right: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: MINT_SECONDARY,
   },
   sparkleDot2: {
     position: 'absolute',
-    bottom: 12,
-    left: 4,
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    bottom: 8,
+    left: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: MINT_SECONDARY,
   },
 
   // Header Titles
   headerTexts: {
     alignItems: 'center',
-    gap: 8,
-    paddingBottom: 4,
+    gap: 4,
+    paddingBottom: 2,
   },
   title: {
-    fontSize: 25,
+    fontSize: 22,
     fontWeight: '900',
     color: TEXT_PRIMARY,
     letterSpacing: -0.6,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: TEXT_SECONDARY,
     textAlign: 'center',
     fontWeight: '600',
-    lineHeight: 19,
+    lineHeight: 16,
     maxWidth: 290,
   },
 
@@ -1215,7 +1222,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: MINT_BORDER_GLASS,
     borderRadius: 24,
-    padding: 16,
+    padding: 11,
     overflow: 'hidden',
     shadowColor: '#4ADE80',
     shadowOffset: { width: 0, height: 8 },
@@ -1226,27 +1233,27 @@ const s = StyleSheet.create({
 
   // Input layouts
   inputWrapper: {
-    gap: 8,
+    gap: 4,
     width: '100%',
   },
   label: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     color: TEXT_SECONDARY,
   },
   textInputBox: {
-    height: 48,
-    borderRadius: 14,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: '#FFF',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.06)',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     justifyContent: 'center',
   },
   textInput: {
-    fontSize: 14.5,
+    fontSize: 13.5,
     fontWeight: '700',
     color: TEXT_PRIMARY,
   },
@@ -1255,11 +1262,11 @@ const s = StyleSheet.create({
   genderRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
+    marginTop: 4,
   },
   genderBtn: {
     flex: 1,
-    height: 40,
+    height: 36,
     borderRadius: 12,
     backgroundColor: '#FFF',
     borderWidth: 1.2,
@@ -1290,7 +1297,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   ageBadge: {
     backgroundColor: 'rgba(74, 222, 128, 0.12)',
@@ -1412,7 +1419,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   metricLabel: {
     fontSize: 12,
@@ -1488,7 +1495,7 @@ const s = StyleSheet.create({
     fontWeight: '900',
     color: MINT_SECONDARY,
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 2,
   },
   goalBadgeRow: {
     flexDirection: 'row',
@@ -1754,12 +1761,12 @@ const s = StyleSheet.create({
 
   // MetricScrollPicker styles
   pickerOuter: {
-    height: 48,
-    borderRadius: 14,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: 'rgba(74, 222, 128, 0.08)',
     position: 'relative',
     justifyContent: 'center',
-    marginVertical: 4,
+    marginVertical: 2,
     overflow: 'hidden',
   },
   pickerIndicator: {

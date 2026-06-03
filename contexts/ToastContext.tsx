@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useRef, useState, useCallback } from 'react'
 import { Animated, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { BlurView } from 'expo-blur'
 import { Text } from '@/components/ui/Text'
 import { SURFACE2, SUCCESS, ERROR, ACCENT, BORDER, TAB_HEIGHT } from '@/lib/theme'
 
@@ -32,7 +33,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         setToasts((prev) => [...prev, { id, message, type }])
         setTimeout(() => {
             setToasts((prev) => prev.filter((t) => t.id !== id))
-        }, 3200)
+        }, 2200)
     }, [])
 
     return (
@@ -53,7 +54,7 @@ function toastColor(type: ToastType) {
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
     const opacity = useRef(new Animated.Value(0)).current
-    const translateY = useRef(new Animated.Value(16)).current
+    const translateY = useRef(new Animated.Value(-16)).current
 
     React.useEffect(() => {
         Animated.parallel([
@@ -64,9 +65,9 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         const t = setTimeout(() => {
             Animated.parallel([
                 Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-                Animated.timing(translateY, { toValue: 10, duration: 180, useNativeDriver: true }),
+                Animated.timing(translateY, { toValue: -10, duration: 180, useNativeDriver: true }),
             ]).start(onDismiss)
-        }, 2800)
+        }, 1800)
 
         return () => clearTimeout(t)
     }, [])
@@ -74,9 +75,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     const color = toastColor(toast.type)
 
     return (
-        <Animated.View style={[s.toast, { opacity, transform: [{ translateY }] }]}>
-            <View style={[s.dot, { backgroundColor: color }]} />
-            <Text style={s.message} numberOfLines={2}>{toast.message}</Text>
+        <Animated.View style={[s.toastContainer, { opacity, transform: [{ translateY }] }]}>
+            <BlurView intensity={80} tint="light" style={s.toastBlur}>
+                <View style={[s.dot, { backgroundColor: color }]} />
+                <Text style={s.message} numberOfLines={2}>{toast.message}</Text>
+            </BlurView>
         </Animated.View>
     )
 }
@@ -88,7 +91,7 @@ function ToastList({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: num
 
     return (
         <View
-            style={[s.container, { bottom: TAB_HEIGHT + insets.bottom + 12 }]}
+            style={[s.container, { top: insets.top + 16 }]}
             pointerEvents="none"
         >
             {toasts.map((t) => (
@@ -105,22 +108,27 @@ const s = StyleSheet.create({
         right: 16,
         gap: 8,
         zIndex: 999,
+        alignItems: 'flex-end',
     },
-    toast: {
+    toastContainer: {
+        maxWidth: 320,
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+        elevation: 8,
+    },
+    toastBlur: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: SURFACE2,
+        backgroundColor: 'rgba(34, 197, 94, 0.15)', // Green glass effect
         borderWidth: 1,
-        borderColor: BORDER,
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 8,
+        borderColor: 'rgba(34, 197, 94, 0.3)',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
     },
     dot: {
         width: 8,
@@ -129,10 +137,10 @@ const s = StyleSheet.create({
         flexShrink: 0,
     },
     message: {
-        flex: 1,
+        flexShrink: 1,
         fontSize: 13.5,
-        color: '#fff',
-        fontWeight: '500',
+        color: '#1F2937',
+        fontWeight: '600',
         lineHeight: 19,
     },
 })

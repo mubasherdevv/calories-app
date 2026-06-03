@@ -78,7 +78,8 @@
         }
       ],
       "expo-web-browser",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "router": {},

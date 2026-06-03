@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { demoUser } from '@/lib/mockData'
 import { getInitials } from '@/lib/utils'
 
 export interface UserProfile {
@@ -8,6 +7,7 @@ export interface UserProfile {
     email: string
     initials: string
     planType: 'free' | 'premium'
+    birthdate?: string
 }
 
 export function useProfile() {
@@ -15,7 +15,17 @@ export function useProfile() {
         queryKey: ['profile'],
         queryFn: async () => {
             const { data: { user }, error: authErr } = await supabase.auth.getUser()
-            if (authErr || !user) throw authErr ?? new Error('Not authenticated')
+            
+            if (authErr || !user) {
+                // Return a Guest profile instead of throwing to prevent React Query from failing and falling back to demo
+                return {
+                    fullName: '',
+                    email: '',
+                    initials: 'G',
+                    planType: 'free',
+                    birthdate: undefined,
+                }
+            }
 
             const { data: profile } = await supabase
                 .from('profiles')
@@ -27,20 +37,15 @@ export function useProfile() {
                 profile?.display_name ||
                 (user.user_metadata?.full_name as string | undefined) ||
                 user.email?.split('@')[0] ||
-                'User'
+                ''
 
             return {
                 fullName,
                 email: user.email ?? '',
-                initials: getInitials(fullName),
+                initials: getInitials(fullName || 'User'),
                 planType: (profile?.plan_type as 'free' | 'premium') ?? 'free',
+                birthdate: user.user_metadata?.birthdate as string | undefined,
             }
-        },
-        placeholderData: {
-            fullName: demoUser.fullName,
-            email: demoUser.email,
-            initials: demoUser.initials,
-            planType: 'free',
         },
     })
 }

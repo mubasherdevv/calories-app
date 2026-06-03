@@ -11,11 +11,11 @@ export default function TermsScreen() {
     return (
         <View style={{ flex: 1, backgroundColor: BG }}>
             <View style={[s.header, { paddingTop: insets.top + 8 }]}>
-                <Pressable onPress={() => router.back()} hitSlop={12}>
-                    <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.6)" />
+                <Pressable onPress={() => router.back()} style={s.backBtn}>
+                    <Ionicons name="chevron-back" size={20} color="#1F2937" />
                 </Pressable>
                 <Text style={s.title}>Terms of Service</Text>
-                <View style={{ width: 24 }} />
+                <View style={{ width: 38 }} />
             </View>
 
             <ScrollView
@@ -66,7 +66,22 @@ const s = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(255,255,255,0.08)',
+        borderBottomColor: 'rgba(0,0,0,0.08)',
+    },
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#FFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.04)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+        elevation: 1,
     },
     title: { color: TEXT_PRIMARY, fontSize: 17, fontWeight: '700' },
     body: { padding: 24, gap: 10 },

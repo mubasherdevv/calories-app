@@ -1,5 +1,6 @@
 import { View, StyleSheet, type ViewProps, Platform } from 'react-native'
 import { BlurView } from 'expo-blur'
+import { GLASS_BG, GLASS_BORDER, CARD_RADIUS, AMBIENT_SHADOW } from '@/lib/theme'
 
 interface CardProps extends ViewProps {
   /** Tighter padding */
@@ -24,7 +25,7 @@ export function Card({ compact, noBlur = false, style, children, ...rest }: Card
     >
       {!noBlur && (
         <BlurView
-          intensity={65}
+          intensity={70}
           tint="light"
           style={StyleSheet.absoluteFill}
         />
@@ -36,22 +37,17 @@ export function Card({ compact, noBlur = false, style, children, ...rest }: Card
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.68)',
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: 'rgba(76, 175, 80, 0.16)',
+    backgroundColor: GLASS_BG,
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1.2,
+    borderColor: GLASS_BORDER,
     overflow: 'hidden',
-    // Premium green shadow glow
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
+    ...AMBIENT_SHADOW,
     // Web backdrop filter support
     ...Platform.select({
       web: {
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        backdropFilter: 'blur(25px)',
+        WebkitBackdropFilter: 'blur(25px)',
       },
       default: {},
     }),

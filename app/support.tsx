@@ -1,80 +1,52 @@
-import { useState } from 'react'
-import { View, ScrollView, StyleSheet, Pressable, Linking } from 'react-native'
-import { router } from 'expo-router'
+import { ScrollView, StyleSheet, View, Pressable } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Text } from '@/components/ui/Text'
-import { Card } from '@/components/ui/Card'
-import {
-    BG,
-    BORDER,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
-    TEXT_TERTIARY,
-    ACCENT,
-} from '@/lib/theme'
-import { supportFaq } from '@/lib/mockData'
-import { APP_SUPPORT_EMAIL, APP_DOCS_URL } from '@/lib/constants'
+import { BG, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY } from '@/lib/theme'
 
 export default function SupportScreen() {
     const insets = useSafeAreaInsets()
-    const [openId, setOpenId] = useState<string | null>(supportFaq[0]?.id ?? null)
 
     return (
         <View style={{ flex: 1, backgroundColor: BG }}>
             <View style={[s.header, { paddingTop: insets.top + 8 }]}>
-                <Pressable onPress={() => router.back()} hitSlop={12}>
-                    <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.6)" />
+                <Pressable onPress={() => router.back()} style={s.backBtn}>
+                    <Ionicons name="chevron-back" size={20} color="#1F2937" />
                 </Pressable>
-                <Text style={s.headerTitle}>Support</Text>
-                <View style={{ width: 24 }} />
+                <Text style={s.title}>Contact Support</Text>
+                <View style={{ width: 38 }} />
             </View>
 
             <ScrollView
-                contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 28 }]}
+                contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 32 }]}
                 showsVerticalScrollIndicator={false}
             >
-                <Card style={s.heroCard}>
-                    <Text style={s.heroTitle}>Need help with setup?</Text>
-                    <Text style={s.heroSub}>
-                        This template includes dummy flows by default. Use these support blocks as placeholders for your real team channels.
-                    </Text>
-
-                    <View style={s.contactRow}>
-                        <Pressable onPress={() => Linking.openURL(`mailto:${APP_SUPPORT_EMAIL}`)} style={s.contactBtn}>
-                            <Ionicons name="mail-outline" size={15} color={ACCENT} />
-                            <Text style={s.contactText}>{APP_SUPPORT_EMAIL}</Text>
-                        </Pressable>
-                        <Pressable onPress={() => Linking.openURL(APP_DOCS_URL)} style={s.contactBtn}>
-                            <Ionicons name="book-outline" size={15} color={ACCENT} />
-                            <Text style={s.contactText}>Documentation</Text>
-                        </Pressable>
+                <View style={s.card}>
+                    <View style={s.iconBox}>
+                        <Ionicons name="mail" size={24} color="#3B82F6" />
                     </View>
-                </Card>
+                    <Text style={s.heading}>Email Us</Text>
+                    <Text style={s.paragraph}>
+                        Need help with your account or have a feature request? Drop us a line and our team will get back to you within 24 hours.
+                    </Text>
+                    <Pressable style={s.primaryBtn}>
+                        <Text style={s.primaryBtnText}>support@caloriesapp.com</Text>
+                    </Pressable>
+                </View>
 
-                <Text style={s.sectionTitle}>Frequently Asked Questions</Text>
-                <Card compact style={s.faqCard}>
-                    {supportFaq.map((item, index) => {
-                        const open = openId === item.id
-                        return (
-                            <Pressable
-                                key={item.id}
-                                onPress={() => setOpenId(open ? null : item.id)}
-                                style={[s.faqRow, index < supportFaq.length - 1 && s.faqDivider]}
-                            >
-                                <View style={s.faqTop}>
-                                    <Text style={s.faqQuestion}>{item.question}</Text>
-                                    <Ionicons
-                                        name={open ? 'chevron-up' : 'chevron-down'}
-                                        size={16}
-                                        color={TEXT_TERTIARY}
-                                    />
-                                </View>
-                                {open && <Text style={s.faqAnswer}>{item.answer}</Text>}
-                            </Pressable>
-                        )
-                    })}
-                </Card>
+                <View style={s.card}>
+                    <View style={s.iconBox}>
+                        <Ionicons name="chatbubbles" size={24} color="#10B981" />
+                    </View>
+                    <Text style={s.heading}>Live Chat</Text>
+                    <Text style={s.paragraph}>
+                        Chat with our AI nutrition coach or a human agent for immediate assistance.
+                    </Text>
+                    <Pressable style={[s.primaryBtn, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                        <Text style={[s.primaryBtnText, { color: '#10B981' }]}>Start a Chat</Text>
+                    </Pressable>
+                </View>
             </ScrollView>
         </View>
     )
@@ -88,41 +60,57 @@ const s = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(255,255,255,0.08)',
+        borderBottomColor: 'rgba(0,0,0,0.08)',
     },
-    headerTitle: { color: TEXT_PRIMARY, fontSize: 17, fontWeight: '700' },
-    body: { padding: 20, gap: 12 },
-    heroCard: { gap: 7 },
-    heroTitle: { fontSize: 17, fontWeight: '800', color: TEXT_PRIMARY },
-    heroSub: { fontSize: 13, lineHeight: 19, color: TEXT_SECONDARY },
-    contactRow: { marginTop: 6, gap: 8 },
-    contactBtn: {
-        borderWidth: 1,
-        borderColor: BORDER,
-        borderRadius: 10,
-        paddingHorizontal: 11,
-        paddingVertical: 10,
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        flexDirection: 'row',
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#FFF',
         alignItems: 'center',
-        gap: 8,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.04)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+        elevation: 1,
     },
-    contactText: { fontSize: 12.5, color: TEXT_PRIMARY },
-    sectionTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: TEXT_TERTIARY,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase',
-        marginTop: 4,
+    title: { color: TEXT_PRIMARY, fontSize: 17, fontWeight: '700' },
+    body: { padding: 24, gap: 16 },
+    card: {
+        backgroundColor: '#FFF',
+        padding: 20,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+        alignItems: 'center',
+        gap: 12,
     },
-    faqCard: { padding: 0, overflow: 'hidden' },
-    faqRow: { paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
-    faqDivider: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: BORDER,
+    iconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
     },
-    faqTop: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-    faqQuestion: { flex: 1, color: TEXT_PRIMARY, fontSize: 14, fontWeight: '600' },
-    faqAnswer: { color: TEXT_SECONDARY, fontSize: 12.5, lineHeight: 18, paddingRight: 16 },
+    heading: { color: TEXT_PRIMARY, fontSize: 16, fontWeight: '800' },
+    paragraph: { color: TEXT_SECONDARY, fontSize: 13.5, lineHeight: 21, textAlign: 'center' },
+    primaryBtn: {
+        marginTop: 8,
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 12,
+        width: '100%',
+        alignItems: 'center',
+    },
+    primaryBtnText: {
+        color: '#3B82F6',
+        fontWeight: '800',
+        fontSize: 14,
+    },
 })

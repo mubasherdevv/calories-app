@@ -11,16 +11,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
+import Svg, { Path } from 'react-native-svg'
+import { Dimensions } from 'react-native'
 
+import { LinearGradient } from 'expo-linear-gradient'
 import {
   TAB_ACTIVE,
   TAB_INACTIVE,
   TAB_HEIGHT,
   ACCENT,
+  ACCENT_DARK,
 } from '@/lib/theme'
 import { Text } from '@/components/ui/Text'
 
-const ICON_SIZE = 22
+const ICON_SIZE = 24.2
 const EASE_OUT = Easing.out(Easing.cubic)
 
 export const TAB_BAR_HEIGHT = TAB_HEIGHT
@@ -57,7 +61,7 @@ function TabItem({
       accessibilityState={{ selected: isActive }}
     >
       <Animated.View style={[s.tabInner, pressStyle]}>
-        <View style={s.iconContainer}>
+        <View style={[s.iconContainer, isActive && s.iconContainerActive]}>
           {icon}
         </View>
         <Text style={[s.label, isActive && s.labelActive]} numberOfLines={1}>
@@ -72,6 +76,7 @@ function TabItem({
 
 export default function TabBar({ state, navigation, descriptors }: BottomTabBarProps) {
   const insets = useSafeAreaInsets()
+  const bottomPosition = insets.bottom > 0 ? insets.bottom + 6 : 14
 
   function handlePress(name: string, key: string, i: number) {
     if (state.index === i) return
@@ -87,7 +92,7 @@ export default function TabBar({ state, navigation, descriptors }: BottomTabBarP
       ? options.tabBarLabel
       : (options.title ?? route.name)
     const icon = options.tabBarIcon?.({
-      color: isActive ? TAB_ACTIVE : TAB_INACTIVE,
+      color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
       size: ICON_SIZE,
       focused: isActive,
     })
@@ -121,10 +126,15 @@ export default function TabBar({ state, navigation, descriptors }: BottomTabBarP
           onPress={() => router.push('/scan')}
           style={({ pressed }) => [
             s.elevatedBtn,
-            pressed && { transform: [{ scale: 0.94 }, { translateY: -20 }], opacity: 0.9 },
+            pressed && { transform: [{ scale: 0.94 }, { translateY: -25 }] },
           ]}
         >
-          <Ionicons name="camera" size={24} color="#FFF" />
+          <LinearGradient
+            colors={['#FBBF24', '#EA580C']}
+            style={s.elevatedBtnGradient}
+          >
+            <Ionicons name="add" size={32} color="#FFF" />
+          </LinearGradient>
         </Pressable>
       </View>
 
@@ -133,19 +143,43 @@ export default function TabBar({ state, navigation, descriptors }: BottomTabBarP
     </View>
   )
 
+  const { width: windowWidth } = Dimensions.get('window')
+  const W = windowWidth - 40
+  const H = TAB_HEIGHT
+  const R = 28
+  const CX = W / 2
+  // Make the cutout perfectly concentric with the button
+  // Button radius = 30. Button center Y = 10 (translateY: -25 from 35).
+  // Cutout radius = 36 (6px gap). Cutout center Y = 10.
+  // Intersection with top edge (Y = 0): sqrt(36^2 - 10^2) = sqrt(1196) = 34.58
+  const CR = 36
+  const X_OFFSET = 34.58
+  const X1 = CX - X_OFFSET
+  const X2 = CX + X_OFFSET
+  
+  // Custom cutout path for the navbar
+  const bgPath = `
+    M 0 ${R}
+    A ${R} ${R} 0 0 1 ${R} 0
+    L ${X1} 0
+    A ${CR} ${CR} 0 0 0 ${X2} 0
+    L ${W - R} 0
+    A ${R} ${R} 0 0 1 ${W} ${R}
+    L ${W} ${H - R}
+    A ${R} ${R} 0 0 1 ${W - R} ${H}
+    L ${R} ${H}
+    A ${R} ${R} 0 0 1 0 ${H - R}
+    Z
+  `
+
   return (
-    <View style={s.wrapper}>
-      {/* Frosted glassmorphic green overlay on iOS */}
-      {Platform.OS === 'ios' && (
-        <>
-          <BlurView intensity={75} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(46, 125, 50, 0.12)' }]} />
-        </>
-      )}
+    <View style={[s.wrapper, { bottom: bottomPosition }]}>
+      <View style={StyleSheet.absoluteFillObject}>
+        <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+          <Path d={bgPath} fill="rgba(34, 197, 94, 0.85)" />
+        </Svg>
+      </View>
       {tabs}
-      {insets.bottom > 0 && (
-        <View style={{ height: insets.bottom, backgroundColor: '#141C17' }} />
-      )}
     </View>
   )
 }
@@ -155,29 +189,23 @@ export default function TabBar({ state, navigation, descriptors }: BottomTabBarP
 const s = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#141C17', // Deep forest-green glass base
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
+    left: 20,
+    right: 20,
+    height: TAB_HEIGHT,
+    borderRadius: 28,
     overflow: 'visible',
-    shadowColor: '#4CAF50', // Rising ambient green glow shadow!
-    shadowOffset: { width: 0, height: -8 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
-    elevation: 12,
-    borderTopWidth: 1.5,
-    borderColor: 'rgba(76, 175, 80, 0.20)', // Translucent green card top line
+    elevation: 8,
   },
   bar: {
     flexDirection: 'row',
     height: TAB_HEIGHT,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
   },
   tab: {
     flex: 1,
@@ -193,17 +221,22 @@ const s = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 24,
+    width: 44,
+    height: 30,
+    borderRadius: 12,
+  },
+  iconContainerActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   label: {
     fontSize: 10,
-    color: TAB_INACTIVE,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
     fontWeight: '700',
   },
   labelActive: {
-    color: TAB_ACTIVE,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontWeight: '900',
   },
 
   // Elevated Center Button
@@ -214,19 +247,25 @@ const s = StyleSheet.create({
     zIndex: 100,
   },
   elevatedBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: ACCENT,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
     elevation: 8,
     borderWidth: 4,
-    borderColor: '#141C17', // Seam-blended border
-    transform: [{ translateY: -20 }],
+    borderColor: '#FFF',
+    transform: [{ translateY: -25 }],
+  },
+  elevatedBtnGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })

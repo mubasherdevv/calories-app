@@ -43,12 +43,15 @@ import {
 } from '@/lib/theme'
 import { useAddFoodLog } from '@/hooks/useFoodLogs'
 import { useToast } from '@/contexts/ToastContext'
+import { useAIConfig, DEFAULT_CONFIG } from '@/hooks/useAIConfig'
+import { usePersonalStats } from '@/hooks/usePersonalStats'
+import { useGoals } from '@/hooks/useGoals'
 
 const { width: SW, height: SH } = Dimensions.get('window')
 const PHOTO_SIZE = SW - 40
 
 // Mock vision AI food taxonomy
-const PRESET_FOODS = [
+let PRESET_FOODS: any[] = [
   { name: 'Avocado Quinoa Bowl', calories: 420, protein: 12, carbs: 48, fat: 22 },
   { name: 'Pan-Seared Ribeye & Broccoli', calories: 740, protein: 58, carbs: 8, fat: 54 },
   { name: 'Spaghetti Carbonara', calories: 680, protein: 24, carbs: 82, fat: 28 },
@@ -61,6 +64,9 @@ export default function ScanScreen() {
   const insets = useSafeAreaInsets()
   const { showToast } = useToast()
   const { mutate: addFoodLog, isPending: isLogging } = useAddFoodLog()
+  const { data: aiConfigData } = useAIConfig()
+  const { data: statsData } = usePersonalStats()
+  const { data: goalsData } = useGoals()
 
   // ─── States ───
   const [imageUri, setImageUri] = useState<string | null>(null)
@@ -137,40 +143,66 @@ export default function ScanScreen() {
 
   const startScanning = async (base64Data?: string) => {
     setStatus('scanning')
-    const geminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? ''
+    const config = aiConfigData || DEFAULT_CONFIG
+    const apiKey = config.apiKey || process.env.EXPO_PUBLIC_GEMINI_API_KEY || ''
 
-    if (geminiKey && base64Data) {
+    if (apiKey && base64Data) {
       try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-          {
+        let cleanText = ''
+        const prompt = `You are an elite nutritionist AI. The user is a ${statsData?.age || 25}yo ${statsData?.gender || 'male'}, ${statsData?.weight || 75}kg, ${statsData?.height || 175}cm, aiming for ${statsData?.goal || 'weight_loss'} with a ${goalsData?.calories || 2000} kcal daily limit, ${goalsData?.protein || 130}g protein, ${goalsData?.carbs || 220}g carbs, ${goalsData?.fats || 65}g fats. Analyze this food image. Return a JSON object with EXACTLY these keys: 'name' (string, e.g. 'Avocado Toast'), 'calories' (integer, e.g. 350), 'protein' (integer, e.g. 12), 'carbs' (integer, e.g. 24), 'fat' (integer, e.g. 22), 'match_percentage' (integer, 0-100 indicating how well this fits their goals), 'match_label' (string, e.g. 'Best Match', 'Balanced Choice', 'Avoid'), 'coach_feedback' (string, 1-2 short sentences of personalized advice), 'healthier_alternatives' (array of strings, e.g. ["Turkey Burger", "Salad"]). Return ONLY the raw JSON block without markdown formatting or backticks.`
+
+        if (config.provider === 'openai' || config.provider === 'custom') {
+          const baseUrl = config.baseUrl || 'https://api.openai.com/v1'
+          const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`
+          const response = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-              contents: [
+              model: config.modelName || 'gpt-4o-mini',
+              messages: [
                 {
-                  parts: [
-                    {
-                      text: "Analyze this food image. Return a JSON object with the calorie and macro nutritional breakdown of the main food item present. The JSON must have exactly these keys: 'name' (string, e.g. 'Avocado Toast'), 'calories' (integer, e.g. 350), 'protein' (integer, e.g. 12), 'carbs' (integer, e.g. 24), 'fat' (integer, e.g. 22). Return ONLY the raw JSON block without markdown formatting or backticks.",
-                    },
-                    {
-                      inlineData: {
-                        mimeType: 'image/jpeg',
-                        data: base64Data,
-                      },
-                    },
-                  ],
-                },
-              ],
-            }),
-          }
-        )
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+                  ]
+                }
+              ]
+            })
+          })
 
-        const result = await response.json()
-        const text = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
-        const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim()
+          const result = await response.json()
+          cleanText = result.choices?.[0]?.message?.content || ''
+        } else {
+          // Gemini Provider
+          const model = config.modelName || 'gemini-2.5-flash'
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      { text: prompt },
+                      { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+                    ],
+                  },
+                ],
+              }),
+            }
+          )
+
+          const result = await response.json()
+          cleanText = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+        }
+        cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim()
         const parsed = JSON.parse(cleanText)
 
         if (parsed.name && parsed.calories !== undefined) {
@@ -180,6 +212,10 @@ export default function ScanScreen() {
             protein: Number(parsed.protein ?? 0),
             carbs: Number(parsed.carbs ?? 0),
             fat: Number(parsed.fat ?? 0),
+            matchPercentage: Number(parsed.match_percentage ?? 85),
+            matchLabel: parsed.match_label ?? 'Good Match',
+            coachFeedback: parsed.coach_feedback ?? 'Great choice!',
+            healthierAlternatives: parsed.healthier_alternatives ?? [],
           }
 
           PRESET_FOODS.unshift(matched)
@@ -385,131 +421,159 @@ export default function ScanScreen() {
         )}
 
         {/* ─── Analyzed Results Screen (Screen 2) ─── */}
+        {/* ─── Analyzed Results Screen (Screen 2) ─── */}
         {status === 'analyzed' && (
           <Animated.View entering={FadeInDown.duration(450)} style={s.analyzedContainer}>
-            {/* Meal Image header preview */}
+            {/* 1. Uploaded Image Header with Retake */}
             {imageUri && (
               <View style={s.imageHeaderFrame}>
                 <Image source={{ uri: imageUri }} style={s.photoHeader as any} />
+                <Pressable
+                  style={s.retakeImageBtn}
+                  onPress={() => {
+                    setStatus('idle')
+                    setImageUri(null)
+                    setCustomDescription('')
+                  }}
+                >
+                  <Ionicons name="camera-outline" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                  <Text style={s.retakeImageBtnText}>Retake</Text>
+                </Pressable>
               </View>
             )}
 
-            {/* Identified List */}
-            <Text style={s.sectionTitle}>AI Food Identifications</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.foodPresetsList}>
-              {PRESET_FOODS.map((food, i) => {
-                const isActive = selectedFoodIndex === i
+            {/* 2. AI Detection Section */}
+            <Text style={s.sectionTitle}>AI DETECTION</Text>
+            <View style={[s.detectionCard, { alignItems: 'flex-start' }]}>
+              <View style={s.detectionIconWrap}>
+                <Ionicons name="sparkles" size={20} color={ACCENT} />
+              </View>
+              <View style={s.detectionInfo}>
+                <Text style={[s.detectionName, { fontSize: 14 }]} numberOfLines={2}>{currentPreset.name}</Text>
+                <Text style={s.detectionSub}>AI identified this meal</Text>
+                <View style={[s.detectionBadge, { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3, paddingHorizontal: 6 }]}>
+                  <Text style={[s.detectionBadgeText, { fontSize: 10 }]}>{currentPreset.matchPercentage ?? 85}% Match</Text>
+                  <Ionicons name="checkmark-circle" size={11} color={ACCENT} style={{ marginLeft: 3 }} />
+                </View>
+              </View>
+            </View>
+
+            {/* 3. NUTRITION SUMMARY */}
+            <Text style={s.sectionTitle}>NUTRITION SUMMARY</Text>
+            <View style={s.nutritionCard}>
+              <View style={s.nutritionTop}>
+                <View style={s.nutritionFlameWrap}>
+                  <Ionicons name="flame" size={22} color={ACCENT} />
+                </View>
+                <View style={s.nutritionCalInfo}>
+                  <Text style={s.nutritionCalText}>{calories}</Text>
+                  <Text style={s.nutritionCalUnit}>kcal</Text>
+                </View>
+              </View>
+              <Text style={s.nutritionCalSub}>Estimated Calories</Text>
+
+              <View style={s.nutritionMacrosRow}>
+                <View style={s.nutritionMacroItem}>
+                  <Text style={[s.nutritionMacroVal, { color: '#22C55E' }]}>{protein}g</Text>
+                  <Text style={s.nutritionMacroLabel}>Protein</Text>
+                  <Text style={s.nutritionMacroGoal}>/ {goalsData?.protein ?? 130}g</Text>
+                </View>
+                <View style={s.nutritionMacroDivider} />
+                <View style={s.nutritionMacroItem}>
+                  <Text style={[s.nutritionMacroVal, { color: '#F59E0B' }]}>{carbs}g</Text>
+                  <Text style={s.nutritionMacroLabel}>Carbs</Text>
+                  <Text style={s.nutritionMacroGoal}>/ {goalsData?.carbs ?? 220}g</Text>
+                </View>
+                <View style={s.nutritionMacroDivider} />
+                <View style={s.nutritionMacroItem}>
+                  <Text style={[s.nutritionMacroVal, { color: '#A855F7' }]}>{fat}g</Text>
+                  <Text style={s.nutritionMacroLabel}>Fat</Text>
+                  <Text style={s.nutritionMacroGoal}>/ {goalsData?.fats ?? 65}g</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 4. MEAL CATEGORY */}
+            <Text style={s.sectionTitle}>MEAL CATEGORY</Text>
+            <View style={s.categoryCard}>
+              {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => {
+                const isActive = mealType === type;
+                let iconName: any = 'sunny-outline';
+                if (type === 'lunch') iconName = 'fast-food-outline';
+                if (type === 'dinner') iconName = 'moon-outline';
+                if (type === 'snack') iconName = 'nutrition-outline';
+
                 return (
-                  <Pressable
-                    key={i}
-                    onPress={() => setSelectedFoodIndex(i)}
-                    style={[
-                      s.foodPresetCard,
-                      isActive && { borderColor: ACCENT, backgroundColor: ACCENT_DIM },
-                    ]}
-                  >
-                    <Text style={[s.presetCardName, isActive && { color: ACCENT }]}>{food.name}</Text>
-                    <Text style={s.presetCardCalories}>{food.calories} kcal</Text>
-                  </Pressable>
-                )
-              })}
-            </ScrollView>
-
-            {/* Custom Macro Display */}
-            <Card style={s.macrosGridCard}>
-              <View style={s.macrosGridHeader}>
-                <View style={s.mainCalorieWrap}>
-                  <Text style={s.macrosGridCalories}>{calories}</Text>
-                  <Text style={s.macrosGridCalLabel}>Estimated Calories</Text>
-                </View>
-              </View>
-
-              <View style={s.macrosMiniRow}>
-                <View style={s.miniMacroItem}>
-                  <Text style={[s.miniMacroVal, { color: '#4CAF50' }]}>{protein}g</Text>
-                  <Text style={s.miniMacroLabel}>Protein</Text>
-                </View>
-                <View style={s.miniMacroItem}>
-                  <Text style={[s.miniMacroVal, { color: '#F59E0B' }]}>{carbs}g</Text>
-                  <Text style={s.miniMacroLabel}>Carbs</Text>
-                </View>
-                <View style={s.miniMacroItem}>
-                  <Text style={[s.miniMacroVal, { color: '#8B5CF6' }]}>{fat}g</Text>
-                  <Text style={s.miniMacroLabel}>Fat</Text>
-                </View>
-              </View>
-            </Card>
-
-            {/* Portion Control Slider */}
-            <Card style={s.portionCard}>
-              <View style={s.portionHeader}>
-                <Text style={s.portionTitle}>Serving Portion</Text>
-                <Text style={s.portionValueText}>{portion.toFixed(1)}x</Text>
-              </View>
-              <View style={s.portionBtnRow}>
-                {[0.5, 1.0, 1.5, 2.0].map((val) => (
-                  <Pressable
-                    key={val}
-                    onPress={() => setPortion(val)}
-                    style={[
-                      s.portionSelectBtn,
-                      portion === val && { backgroundColor: ACCENT, borderColor: ACCENT },
-                    ]}
-                  >
-                    <Text style={[s.portionSelectText, portion === val && { color: '#FFF' }]}>
-                      {val === 1.0 ? '1x (Normal)' : `${val}x`}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </Card>
-
-            {/* Meal Category Selector */}
-            <Card style={s.mealTypeCard}>
-              <Text style={s.portionTitle}>Meal Log Category</Text>
-              <View style={s.mealTypeBtnRow}>
-                {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((type) => (
                   <Pressable
                     key={type}
                     onPress={() => setMealType(type)}
-                    style={[
-                      s.mealTypeBtn,
-                      mealType === type && { backgroundColor: ACCENT, borderColor: ACCENT },
-                    ]}
+                    style={[s.categoryBtn, isActive && s.categoryBtnActive]}
                   >
-                    <Text style={[s.mealTypeBtnText, mealType === type && { color: '#FFF' }]}>
+                    <Ionicons
+                      name={iconName}
+                      size={15}
+                      color={isActive ? ACCENT : TEXT_SECONDARY}
+                    />
+                    <Text style={[s.categoryBtnText, isActive && s.categoryBtnTextActive]}>
                       {type.charAt(0).toUpperCase() + type.slice(1)}
                     </Text>
                   </Pressable>
-                ))}
-              </View>
-            </Card>
-
-            {/* Logging Buttons */}
-            <View style={s.reScanGroup}>
-              <Button
-                label={isLogging ? 'Logging...' : 'Log Food to Diary'}
-                onPress={handleLogMeal}
-                disabled={isLogging}
-                variant="primary"
-                style={s.logMealBtn}
-              />
-
-              <Pressable
-                onPress={() => {
-                  setStatus('idle')
-                  setImageUri(null)
-                  setCustomDescription('')
-                  setPortion(1.0)
-                }}
-                style={s.reScanBtn}
-              >
-                <Text style={s.reScanBtnText}>Re-scan another food</Text>
-              </Pressable>
+                )
+              })}
             </View>
+
+            {/* 5. AI COACH */}
+            <Text style={s.sectionTitle}>AI COACH</Text>
+            <View style={s.aiCoachCard}>
+              <View style={s.aiCoachIconWrap}>
+                <Ionicons name="planet" size={32} color="#000" />
+              </View>
+              <View style={s.aiCoachContent}>
+                <Text style={s.aiCoachTitle}>{currentPreset.matchLabel ?? 'Great choice! 💪'}</Text>
+                <Text style={s.aiCoachSub}>
+                  {currentPreset.coachFeedback ?? 'High protein meal detected. Consider adding some vegetables or a side salad for better fiber intake.'}
+                </Text>
+              </View>
+              <Ionicons name="sparkles" size={16} color="#A7F3D0" style={{ position: 'absolute', top: 12, right: 24, opacity: 0.8 }} />
+              <Ionicons name="sparkles" size={12} color="#A7F3D0" style={{ position: 'absolute', top: 32, right: 12, opacity: 0.6 }} />
+              <Ionicons name="sparkles" size={20} color="#A7F3D0" style={{ position: 'absolute', bottom: 16, right: 16, opacity: 0.4 }} />
+            </View>
+
+            {/* 6. HEALTHIER ALTERNATIVES */}
+            {currentPreset.healthierAlternatives && currentPreset.healthierAlternatives.length > 0 && (
+              <>
+                <Text style={s.sectionTitle}>Healthier Alternatives</Text>
+                <View style={[s.categoryCard, { paddingVertical: 12, flexDirection: 'column', gap: 8 }]}>
+                  {currentPreset.healthierAlternatives.map((alt: string, i: number) => (
+                    <View key={`alt-${i}`} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 10, width: '100%' }}>
+                      <Ionicons name="leaf" size={16} color="#22C55E" style={{ marginRight: 10 }} />
+                      <Text style={{ flex: 1, color: TEXT_SECONDARY, fontSize: 13, fontWeight: '500' }}>{alt}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            <View style={{ height: 80 }} />
           </Animated.View>
         )}
       </ScrollView>
+
+      {/* 6. Fixed Bottom Add to Diary Button */}
+      {status === 'analyzed' && (
+        <Animated.View entering={FadeInDown.duration(400)} style={[s.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          <Pressable
+            onPress={handleLogMeal}
+            disabled={isLogging}
+            style={({ pressed }) => [s.addToDiaryBtn, pressed && { opacity: 0.85 }, isLogging && { opacity: 0.5 }]}
+          >
+            <Text style={s.addToDiaryText}>{isLogging ? 'Logging...' : 'Add to Diary'}</Text>
+            <View style={s.addToDiaryPlus}>
+              <Ionicons name="add" size={20} color={ACCENT} />
+            </View>
+          </Pressable>
+        </Animated.View>
+      )}
     </View>
   )
 }
@@ -742,188 +806,284 @@ const s = StyleSheet.create({
 
   // Analyzed state results (Screen 2)
   analyzedContainer: {
-    gap: 16,
+    gap: 12,
   },
   imageHeaderFrame: {
     width: '100%',
-    height: 180,
+    height: 190,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.03)',
+    position: 'relative',
   },
   photoHeader: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
-  sectionTitle: {
+  retakeImageBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  retakeImageBtnText: {
+    color: '#FFF',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 11,
     fontWeight: '800',
     color: TEXT_TERTIARY,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
-    paddingHorizontal: 2,
-  },
-  foodPresetsList: {
-    flexDirection: 'row',
-  },
-  foodPresetCard: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.40)',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(76, 175, 80, 0.08)',
-    marginRight: 8,
-    alignItems: 'center',
-    gap: 2,
-    minWidth: 120,
-  },
-  presetCardName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: TEXT_PRIMARY,
-    textAlign: 'center',
-  },
-  presetCardCalories: {
-    fontSize: 11,
-    color: TEXT_SECONDARY,
-    fontWeight: '500',
+    marginTop: 6,
+    paddingHorizontal: 4,
   },
 
-  // Macro Summary Card
-  macrosGridCard: {
-    padding: 16,
-    alignItems: 'center',
-    gap: 16,
-  },
-  macrosGridHeader: {
-    alignItems: 'center',
-  },
-  mainCalorieWrap: {
-    alignItems: 'center',
-  },
-  macrosGridCalories: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: TEXT_PRIMARY,
-    letterSpacing: -0.8,
-  },
-  macrosGridCalLabel: {
-    fontSize: 11.5,
-    color: TEXT_SECONDARY,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  macrosMiniRow: {
+  // Detection Card
+  detectionCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 14,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-    paddingTop: 12,
-  },
-  miniMacroItem: {
     alignItems: 'center',
-    gap: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  miniMacroVal: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  miniMacroLabel: {
-    fontSize: 11,
-    color: TEXT_TERTIARY,
-    fontWeight: '600',
-  },
-
-  // Portion slider card
-  portionCard: {
-    padding: 16,
-    gap: 12,
-  },
-  portionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  portionTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: TEXT_PRIMARY,
-  },
-  portionValueText: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: ACCENT,
-  },
-  portionBtnRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  portionSelectBtn: {
-    flex: 1,
-    height: 38,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(76, 175, 80, 0.08)',
-    backgroundColor: 'rgba(255, 255, 255, 0.40)',
+  detectionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
-  portionSelectText: {
+  detectionInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  detectionName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: TEXT_PRIMARY,
+  },
+  detectionSub: {
     fontSize: 12,
     color: TEXT_SECONDARY,
+    marginTop: 2,
+  },
+  detectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  detectionBadgeText: {
+    color: ACCENT,
+    fontSize: 11,
     fontWeight: '700',
   },
 
-  // Meal Category Selector
-  mealTypeCard: {
-    padding: 16,
+  // Nutrition Card
+  nutritionCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  nutritionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
   },
-  mealTypeBtnRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  mealTypeBtn: {
-    flex: 1,
-    height: 38,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(76, 175, 80, 0.08)',
-    backgroundColor: 'rgba(255, 255, 255, 0.40)',
+  nutritionFlameWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mealTypeBtnText: {
-    fontSize: 11.5,
+  nutritionCalInfo: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  nutritionCalText: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: TEXT_PRIMARY,
+    letterSpacing: -1,
+  },
+  nutritionCalUnit: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+  },
+  nutritionCalSub: {
+    textAlign: 'center',
+    fontSize: 13,
     color: TEXT_SECONDARY,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  nutritionMacrosRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  nutritionMacroItem: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 2,
+  },
+  nutritionMacroDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#F3F4F6',
+  },
+  nutritionMacroVal: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  nutritionMacroLabel: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    fontWeight: '600',
+  },
+  nutritionMacroGoal: {
+    fontSize: 11,
+    color: TEXT_TERTIARY,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+
+  // Category Row
+  categoryCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    borderRadius: 14,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    gap: 4,
+  },
+  categoryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  categoryBtnActive: {
+    backgroundColor: 'rgba(34, 197, 94, 0.06)',
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  categoryBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: TEXT_SECONDARY,
+    marginLeft: 4,
+  },
+  categoryBtnTextActive: {
+    color: ACCENT,
     fontWeight: '700',
   },
 
-  // Logging controls
-  reScanGroup: {
-    gap: 10,
-    marginTop: 8,
+  // AI Coach Card
+  aiCoachCard: {
+    backgroundColor: 'rgba(34, 197, 94, 0.06)',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.15)',
+    overflow: 'hidden',
   },
-  logMealBtn: {
-    height: 50,
-    borderRadius: 14,
+  aiCoachIconWrap: {
+    marginRight: 12,
+    marginTop: 2,
   },
-  reScanBtn: {
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.40)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(76, 175, 80, 0.08)',
+  aiCoachContent: {
+    flex: 1,
+    paddingRight: 20,
+  },
+  aiCoachTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: TEXT_PRIMARY,
+    marginBottom: 4,
+  },
+  aiCoachSub: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    lineHeight: 18,
+  },
+
+  // Bottom Action Button
+  fixedBottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: BG,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.03)',
+  },
+  addToDiaryBtn: {
+    backgroundColor: ACCENT,
+    height: 56,
+    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  reScanBtnText: {
-    color: TEXT_SECONDARY,
-    fontSize: 13.5,
-    fontWeight: '700',
+  addToDiaryText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+    marginRight: 8,
+  },
+  addToDiaryPlus: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })
