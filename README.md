@@ -11,12 +11,21 @@
 
 ## 📚 Project Documentation
 
-Explore the detailed architecture and planning documents below:
+Explore the detailed architecture and planning documents below, neatly organized in our `app-walkthrough` directory:
 
-- 📋 **[Product Requirements Document (PRD)](./PRD.md)**: Core features, audience, and scope.
-- 🤖 **[AI Workflow Diagram](./AI_Workflow_Diagram.md)**: Visual flowchart of the AI food scanning process.
-- 🗄️ **[Database Schema](./Database_Schema.md)**: Supabase PostgreSQL tables and RLS policies.
-- 🔒 **[Privacy Policy](./Privacy_Policy.md)**: Data collection and privacy guidelines.
+### 📐 Core Planning & Architecture
+- 📋 **[Product Requirements (PRD)](./app-walkthrough/PRD.md)**: Core features, target audience, and project scope.
+- 🏗️ **[Technical Architecture](./app-walkthrough/Technical_Architecture.md)**: Deep dive into the React Native, Expo, and Supabase stack.
+- 🔒 **[Security & Access](./app-walkthrough/Security_Access.md)**: Details on RLS policies, Auth flow, and token management.
+- 🎨 **[Frontend Spec](./app-walkthrough/Frontend_Spec.md)**: UI/UX principles, file structure, and Reanimated animations.
+
+### ⚙️ Technical Specs & Backlog
+- 🤖 **[AI Workflow Diagram](./app-walkthrough/AI_Workflow_Diagram.md)**: Visual Mermaid flowchart of the AI food scanning process.
+- 🗄️ **[Database Schema](./app-walkthrough/Database_Schema.md)**: Overview of Supabase PostgreSQL tables and relationships.
+- 🎫 **[Feature Ticket List](./app-walkthrough/Feature_Ticket_List.md)**: Jira-style backlog of upcoming features and tech debt.
+
+### ⚖️ Legal & Support
+- 🛡️ **[Privacy Policy](./app-walkthrough/Privacy_Policy.md)**: Guidelines on data collection and user privacy.
 
 ---
 
